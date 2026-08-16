@@ -1,0 +1,5 @@
+sed -i 's/import com.example.ui.bottomnav.WorkspaceActionsBottomSheet/import com.example.ui.bottomnav.WorkspaceActionsBottomSheet\nimport com.example.ui.export.GithubExportBottomSheet/g' app/src/main/java/com/example/ui/OmniRouteApp.kt
+sed -i '/var showWorkspaceActions by remember { mutableStateOf(false) }/a \
+    var showGithubExport by remember { mutableStateOf(false) }' app/src/main/java/com/example/ui/OmniRouteApp.kt
+sed -i '/if (showWorkspaceActions) {/,/}/c \
+                if (showWorkspaceActions) {\n                    WorkspaceActionsBottomSheet(\n                        onDismiss = { showWorkspaceActions = false },\n                        onExportClick = {\n                            showWorkspaceActions = false\n                            showGithubExport = true\n                        }\n                    )\n                }\n                if (showGithubExport) {\n                    GithubExportBottomSheet(\n                        onDismiss = { showGithubExport = false }\n                    )\n                }' app/src/main/java/com/example/ui/OmniRouteApp.kt

@@ -1,0 +1,1 @@
+sed -i 's/import androidx.compose.material.icons.filled.\*/import androidx.compose.material.icons.filled.*\nimport androidx.compose.material.icons.filled.Search\nimport androidx.compose.material.icons.filled.Clear/g' app/src/main/java/com/example/ui/code/FileExplorer.kt
