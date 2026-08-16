@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.UnfoldLess
 
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -91,12 +92,14 @@ data class ChatMessage(
 fun ChatScreen(
     sessionId: String,
     onMenuClick: () -> Unit,
-    onNavigateToThreadSettings: () -> Unit = {}
+    onNavigateToThreadSettings: () -> Unit = {},
+    onSessionPromoted: (String) -> Unit = {}
 ) {
     val aiViewModel: AiManagerViewModel = viewModel()
     val availableModels by aiViewModel.availableModels.collectAsState()
     
-    val workspaceName = remember { mutableStateOf(com.example.engine.fs.LocalFileManager.getWorkspaceName(com.example.engine.fs.LocalFileManager.getWorkspaceDir().name)) }
+    val isTemporaryChat = remember(sessionId) { sessionId.startsWith("temp_") }
+    val workspaceName = remember { mutableStateOf(com.example.engine.fs.LocalFileManager.getWorkspaceName(sessionId)) }
     var inputText by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -112,20 +115,23 @@ fun ChatScreen(
     var selectedModel by remember { mutableStateOf("Select Model") }
     
     val isListening by VoiceManager.isListening.collectAsState()
+    val audioAmplitude by VoiceManager.amplitude.collectAsState()
+    var recordedVoiceFile by remember { mutableStateOf<java.io.File?>(null) }
+    
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             VoiceManager.startListening(
                 context = context,
-                onPartialResult = { partial ->
-                    if (partial.isNotBlank()) {
-                        inputText = if (inputText.isBlank()) partial else "$inputText $partial"
-                    }
+                onAudioRecorded = { file ->
+                    recordedVoiceFile = file
+                    inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
+                    Toast.makeText(context, "Voice note recorded (${file.name})", Toast.LENGTH_SHORT).show()
                 },
-                onFinalResult = { final ->
-                    if (final.isNotBlank()) {
-                        inputText = if (inputText.isBlank()) final else "$inputText $final"
+                onFinalResult = { text ->
+                    if (text.isNotBlank()) {
+                        inputText = if (inputText.isBlank()) text else "$inputText $text"
                     }
                 },
                 onError = { err ->
@@ -251,6 +257,29 @@ fun ChatScreen(
             actions = {
                 var showMenu by remember { mutableStateOf(false) }
                 var showRename by remember { mutableStateOf(false) }
+
+                if (isTemporaryChat) {
+                    IconButton(onClick = {
+                        val permanentId = java.util.UUID.randomUUID().toString()
+                        val newTitle = if (workspaceName.value.startsWith("🔥")) workspaceName.value.removePrefix("🔥").trim() else workspaceName.value
+                        com.example.engine.fs.LocalFileManager.setWorkspaceName(permanentId, newTitle.ifBlank { "Saved Chat" })
+                        
+                        scope.launch {
+                            chatMessages.forEach { msg ->
+                                dao.insertMessage(msg.toEntity(permanentId))
+                            }
+                            LogKeeper.log("ChatScreen", "PromotedToWorkspace", "Temporary chat $sessionId promoted to permanent $permanentId")
+                            Toast.makeText(context, "Saved as permanent workspace chat!", Toast.LENGTH_SHORT).show()
+                            onSessionPromoted(permanentId)
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = "Save to Workspace",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
                 IconButton(onClick = {
                     showArtifactsList = true
@@ -493,20 +522,24 @@ fun ChatScreen(
                         FilledIconButton(
                             onClick = {
                                 if (isListening) {
-                                    VoiceManager.stopListening()
+                                    VoiceManager.stopListening { file ->
+                                        recordedVoiceFile = file
+                                        inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
+                                        Toast.makeText(context, "Recorded: ${file.name}", Toast.LENGTH_SHORT).show()
+                                    }
                                 } else {
                                     audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                                 }
                             },
                             colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (isListening) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                containerColor = if (isListening) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
                             ),
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                                contentDescription = if (isListening) "Stop Listening" else "Voice Dictation",
-                                tint = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                contentDescription = if (isListening) "Stop Recording" else "Voice Recording",
+                                tint = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))

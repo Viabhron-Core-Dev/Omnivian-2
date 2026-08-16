@@ -1,3 +1,13 @@
 <resources>
-    <string name="app_name">OmniVian</string>
+    <string name="app_name">Omnivian</string>
+    <string name="title_activity_main">Omnivian</string>
+    <string name="widget_quick_chat_name">OmniRoot Quick Action</string>
+    <string name="widget_quick_chat_description">Instant AI voice input, quick prompt search, and new chat launcher.</string>
+    <string name="widget_prompt_hint">Ask OmniRoot anything...</string>
+    <string name="shortcut_temp_chat_short">New Chat</string>
+    <string name="shortcut_temp_chat_long">Start New Temp Chat</string>
+    <string name="shortcut_voice_short">Voice Mode</string>
+    <string name="shortcut_voice_long">Instant AI Voice Input</string>
+    <string name="shortcut_workspace_short">Workspace</string>
+    <string name="shortcut_workspace_long">Open Code Workspace</string>
 </resources>

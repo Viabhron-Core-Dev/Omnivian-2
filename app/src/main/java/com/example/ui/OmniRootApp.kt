@@ -1,9 +1,10 @@
 package com.example.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,20 +14,22 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.MainActivity
 import com.example.ui.bottomnav.AppTab
 import com.example.ui.bottomnav.FixedBottomNav
 import com.example.ui.bottomnav.WorkspaceActionsBottomSheet
-import com.example.ui.export.GithubExportBottomSheet
 import com.example.ui.chat.ChatScreen
 import com.example.ui.code.CodeScreen
-import com.example.ui.sidebar.GlobalSidebar
+import com.example.ui.export.GithubExportBottomSheet
+import com.example.ui.settings.AudioSettingsScreen
 import com.example.ui.settings.GlobalSettingsScreen
-import com.example.ui.settings.ThreadSettingsScreen
 import com.example.ui.settings.LogKeeperScreen
-import com.example.utils.LogKeeper
+import com.example.ui.settings.ThreadSettingsScreen
+import com.example.ui.settings.omniroot.AiManagerPanelScreen
+import com.example.ui.settings.omniroot.DirectToKeyWebViewScreen
+import com.example.ui.sidebar.GlobalSidebar
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OmniRootApp() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -37,7 +40,6 @@ fun OmniRootApp() {
     var currentTab by remember { mutableStateOf(AppTab.CHAT) }
     var showWorkspaceActions by remember { mutableStateOf(false) }
     var showGithubExport by remember { mutableStateOf(false) }
-    var showTokenPanel by remember { mutableStateOf(false) }
     var chatSessionId by remember { 
         mutableStateOf(
             run {
@@ -59,6 +61,34 @@ fun OmniRootApp() {
     
     val navController = rememberNavController()
     var showNewChatDialog by remember { mutableStateOf(false) }
+
+    // React to incoming Deep Links and Intents from Widget & Shortcuts
+    val incomingUri by MainActivity.currentIntentData
+    val incomingAction by MainActivity.currentIntentAction
+
+    LaunchedEffect(incomingUri, incomingAction) {
+        val uri = incomingUri
+        val action = incomingAction
+        if (uri != null || action != null) {
+            val uriStr = uri?.toString() ?: ""
+            if (uriStr.contains("chat/new") || action == "open_chat") {
+                val newTempId = "temp_${System.currentTimeMillis()}"
+                com.example.engine.fs.LocalFileManager.setWorkspaceName(newTempId, "🔥 Quick Chat")
+                chatSessionId = newTempId
+                currentTab = AppTab.CHAT
+                navController.navigate("main") { popUpTo("main") { inclusive = true } }
+            } else if (uriStr.contains("chat/voice") || action == "voice_mode") {
+                currentTab = AppTab.CHAT
+                navController.navigate("main") { popUpTo("main") { inclusive = true } }
+            } else if (uriStr.contains("code/workspace") || action == "open_code") {
+                currentTab = AppTab.CODE
+                navController.navigate("main") { popUpTo("main") { inclusive = true } }
+            }
+            // Clear once handled
+            MainActivity.currentIntentData.value = null
+            MainActivity.currentIntentAction.value = null
+        }
+    }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -138,7 +168,11 @@ fun OmniRootApp() {
                                 ChatScreen(
                                     sessionId = chatSessionId,
                                     onMenuClick = { scope.launch { drawerState.open() } },
-                                    onNavigateToThreadSettings = { navController.navigate("thread_settings") }
+                                    onNavigateToThreadSettings = { navController.navigate("thread_settings") },
+                                    onSessionPromoted = { promotedId ->
+                                        chatSessionId = promotedId
+                                        prefs.edit().putString("active_chat_id", promotedId).apply()
+                                    }
                                 )
                             }
                             AppTab.CODE -> CodeScreen(
@@ -164,56 +198,50 @@ fun OmniRootApp() {
                             showWorkspaceActions = false
                             showGithubExport = true
                         },
-                        onZipExportClick = {
-                            showWorkspaceActions = false
-                            scope.launch {
-                                val context = navController.context
-                                val dir = com.example.engine.fs.LocalFileManager.getWorkspaceDir()
-                                val cacheDir = context.cacheDir
-                                val zipFile = java.io.File(cacheDir, "workspace_${dir.name}.zip")
-                                val result = com.example.engine.fs.LocalFileManager.zipDirectory(dir, zipFile)
-                                if (result.isSuccess) {
-                                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        zipFile
-                                    )
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                        type = "application/zip"
-                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(intent, "Export Workspace"))
-                                } else {
-                                    android.widget.Toast.makeText(context, "Failed to create ZIP", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
                         onThreadSettingsClick = {
                             showWorkspaceActions = false
                             navController.navigate("thread_settings")
-                        },
-                        onTokenPanelClick = {
-                            showTokenPanel = true
                         }
                     )
                 }
+                
                 if (showGithubExport) {
                     GithubExportBottomSheet(
                         onDismiss = { showGithubExport = false }
                     )
                 }
-                
-                if (showTokenPanel) {
-                    com.example.ui.chat.AiTokenPanelBottomSheet(
-                        onDismiss = { showTokenPanel = false }
-                    )
-                }
+            }
+
+            composable("artifacts") {
+                com.example.ui.artifacts.ArtifactsScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             
             composable("thread_settings") {
                 ThreadSettingsScreen(
                     workspaceId = chatSessionId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            
+            composable("settings") {
+                GlobalSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateTo = { destination ->
+                        if (destination == "audio_settings") {
+                            navController.navigate("audio_settings")
+                        } else if (destination == "settings/omniroot") {
+                            navController.navigate("ai_manager")
+                        } else {
+                            navController.navigate(destination)
+                        }
+                    }
+                )
+            }
+
+            composable("audio_settings") {
+                AudioSettingsScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -223,65 +251,22 @@ fun OmniRootApp() {
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-            composable("settings") {
-                GlobalSettingsScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateTo = { route -> 
-                        navController.navigate(route) 
-                        // Note: actual nested routes for settings aren't fully implemented in this phase
-                    }
-                )
-            }
-            composable("settings/omniroot") {
-                com.example.ui.settings.omniroot.AiManagerPanelScreen(
+
+            composable("ai_manager") {
+                AiManagerPanelScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onAddKeyClick = { providerId ->
-                        navController.navigate("settings/omniroot/add_key/$providerId")
+                        navController.navigate("direct_to_key/$providerId")
                     }
                 )
             }
-            composable("settings/omniroot/add_key/{providerId}") { backStackEntry ->
-                val providerId = backStackEntry.arguments?.getString("providerId") ?: return@composable
-                com.example.ui.settings.omniroot.DirectToKeyWebViewScreen(
+
+            composable("direct_to_key/{providerId}") { backStackEntry ->
+                val providerId = backStackEntry.arguments?.getString("providerId") ?: ""
+                DirectToKeyWebViewScreen(
                     providerId = providerId,
                     onNavigateBack = { navController.popBackStack() }
                 )
-            }
-            composable("settings/audio") {
-                com.example.ui.settings.AudioSettingsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("settings/{subRoute}") { backStackEntry ->
-                val subRoute = backStackEntry.arguments?.getString("subRoute") ?: "Unknown"
-                Scaffold(
-                    topBar = {
-                        TopAppBar(
-                            title = { Text(subRoute.replaceFirstChar { it.uppercase() }) },
-                            navigationIcon = {
-                                IconButton(onClick = { navController.popBackStack() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                }
-                            }
-                        )
-                    }
-                ) { padding ->
-                    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                        when (subRoute) {
-                            "skills" -> com.example.ui.settings.SkillsSettingsContent()
-                            "tools" -> com.example.ui.settings.ToolsSettingsContent()
-                            "mcp" -> com.example.ui.settings.MCPSettingsContent()
-                            "plugins" -> com.example.ui.settings.PluginsSettingsContent()
-                            "memory_modules" -> com.example.ui.settings.MemoryModulesSettingsContent()
-                            "github", "firebase", "gdrive" -> com.example.ui.settings.IntegrationsSettingsContent()
-                            "permissions" -> com.example.ui.settings.PermissionsSettingsContent()
-                            "font" -> com.example.ui.settings.FontSettingsContent()
-                            "backup" -> com.example.ui.settings.BackupSettingsContent()
-                            "editor" -> com.example.ui.settings.EditorSettingsContent()
-                            else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("Settings content for $subRoute (Pending implementation)") }
-                        }
-                    }
-                }
             }
         }
     }

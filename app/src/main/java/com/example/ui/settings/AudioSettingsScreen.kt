@@ -103,6 +103,61 @@ fun AudioSettingsScreen(
                 )
             }
 
+            // Engine 0: Direct Audio Recording (Default & Most Reliable)
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (activeEngine == VoiceManager.ENGINE_DIRECT_AUDIO)
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            activeEngine = VoiceManager.ENGINE_DIRECT_AUDIO
+                            VoiceManager.setSttEngine(context, VoiceManager.ENGINE_DIRECT_AUDIO)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = activeEngine == VoiceManager.ENGINE_DIRECT_AUDIO,
+                            onClick = {
+                                activeEngine = VoiceManager.ENGINE_DIRECT_AUDIO
+                                VoiceManager.setSttEngine(context, VoiceManager.ENGINE_DIRECT_AUDIO)
+                            }
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Direct Audio Recording", fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF1976D2).copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("Recommended", color = Color(0xFF1976D2), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Directly records microphone audio into AAC/M4A clips. 100% reliable across all devices and emulators.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             // Engine 1: Android System SpeechRecognizer
             item {
                 Card(

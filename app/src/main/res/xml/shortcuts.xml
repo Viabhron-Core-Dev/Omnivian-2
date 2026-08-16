@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_temp_chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_chat"
+        android:shortcutShortLabel="@string/shortcut_temp_chat_short"
+        android:shortcutLongLabel="@string/shortcut_temp_chat_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example"
+            android:targetClass="com.example.MainActivity"
+            android:data="omniroot://chat/new" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="voice_chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_mic"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example"
+            android:targetClass="com.example.MainActivity"
+            android:data="omniroot://chat/voice" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="code_workspace"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_code"
+        android:shortcutShortLabel="@string/shortcut_workspace_short"
+        android:shortcutLongLabel="@string/shortcut_workspace_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example"
+            android:targetClass="com.example.MainActivity"
+            android:data="omniroot://code/workspace" />
+    </shortcut>
+</shortcuts>
