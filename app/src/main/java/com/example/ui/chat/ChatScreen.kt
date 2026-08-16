@@ -126,12 +126,19 @@ fun ChatScreen(
                 context = context,
                 onAudioRecorded = { file ->
                     recordedVoiceFile = file
-                    inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
-                    Toast.makeText(context, "Voice note recorded (${file.name})", Toast.LENGTH_SHORT).show()
+                    val engine = VoiceManager.getSttEngine(context)
+                    if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
+                        inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
+                        Toast.makeText(context, "Voice note recorded (${file.name})", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onPartialResult = { partial ->
+                    // Live partial result can be displayed or logged
                 },
                 onFinalResult = { text ->
                     if (text.isNotBlank()) {
                         inputText = if (inputText.isBlank()) text else "$inputText $text"
+                        Toast.makeText(context, "Transcribed voice input", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onError = { err ->
@@ -329,18 +336,6 @@ fun ChatScreen(
                         onClick = { showMenu = false; showRename = true }
                     )
                     DropdownMenuItem(
-                        text = { Text("Thread Settings") },
-                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        onClick = { 
-                            showMenu = false
-                            onNavigateToThreadSettings()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("AI Token Panel") },
-                        onClick = { showMenu = false; showTokenPanel = true }
-                    )
-                    DropdownMenuItem(
                         text = { Text("Archive (GDrive)") },
                         onClick = { 
                             showMenu = false
@@ -523,9 +518,12 @@ fun ChatScreen(
                             onClick = {
                                 if (isListening) {
                                     VoiceManager.stopListening { file ->
-                                        recordedVoiceFile = file
-                                        inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
-                                        Toast.makeText(context, "Recorded: ${file.name}", Toast.LENGTH_SHORT).show()
+                                        val engine = VoiceManager.getSttEngine(context)
+                                        if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
+                                            recordedVoiceFile = file
+                                            inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
+                                            Toast.makeText(context, "Recorded: ${file.name}", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 } else {
                                     audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)

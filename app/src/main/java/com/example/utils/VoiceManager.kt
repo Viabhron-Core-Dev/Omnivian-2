@@ -1,8 +1,15 @@
 package com.example.utils
 
 import android.content.Context
+import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,14 +33,16 @@ object VoiceManager : TextToSpeech.OnInitListener {
     private const val KEY_TTS_PITCH = "tts_pitch"
     private const val KEY_TTS_SPEED = "tts_speed"
 
-    const val ENGINE_DIRECT_AUDIO = "direct_audio"
     const val ENGINE_ANDROID_NATIVE = "android_native"
+    const val ENGINE_DIRECT_AUDIO = "direct_audio"
     const val ENGINE_CUSTOM_MODEL = "custom_model"
 
+    private var speechRecognizer: SpeechRecognizer? = null
     private var mediaRecorder: MediaRecorder? = null
     private var currentRecordingFile: File? = null
     private var amplitudeJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var tts: TextToSpeech? = null
     private var isTtsInitialized = false
@@ -73,7 +82,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
 
     fun getSttEngine(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_STT_ENGINE, ENGINE_DIRECT_AUDIO) ?: ENGINE_DIRECT_AUDIO
+        return prefs.getString(KEY_STT_ENGINE, ENGINE_ANDROID_NATIVE) ?: ENGINE_ANDROID_NATIVE
     }
 
     fun setSttEngine(context: Context, engine: String) {
@@ -128,8 +137,8 @@ object VoiceManager : TextToSpeech.OnInitListener {
     }
 
     /**
-     * Directly records audio from microphone into an AAC / M4A file without relying
-     * on external Speech Recognition services or Google Play Services.
+     * Starts listening using the configured STT engine from AudioSettings.
+     * Default: Android SpeechRecognizer for real-time speech-to-text conversion.
      */
     fun startListening(
         context: Context,
@@ -140,6 +149,116 @@ object VoiceManager : TextToSpeech.OnInitListener {
     ) {
         stopListening()
 
+        val engine = getSttEngine(context)
+        LogKeeper.log("VoiceManager", "StartListening", "Starting voice recognition with engine: $engine")
+
+        if (engine == ENGINE_DIRECT_AUDIO) {
+            startDirectAudioRecording(context, onAudioRecorded, onError)
+        } else {
+            // Android Native STT (SpeechRecognizer)
+            mainHandler.post {
+                startSpeechRecognizer(context, onPartialResult, onFinalResult, onError)
+            }
+        }
+    }
+
+    private fun startSpeechRecognizer(
+        context: Context,
+        onPartialResult: (String) -> Unit,
+        onFinalResult: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            LogKeeper.log("VoiceManager", "SttUnavailable", "Speech recognition unavailable on device, falling back to direct audio")
+            startDirectAudioRecording(context, null, onError)
+            return
+        }
+
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context.applicationContext).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        _isListening.value = true
+                        LogKeeper.log("VoiceManager", "SttReady", "Speech recognizer ready for speech")
+                    }
+
+                    override fun onBeginningOfSpeech() {
+                        _isListening.value = true
+                    }
+
+                    override fun onRmsChanged(rmsdB: Float) {
+                        val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                        _amplitude.value = normalized
+                    }
+
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        _isListening.value = false
+                    }
+
+                    override fun onError(error: Int) {
+                        _isListening.value = false
+                        _amplitude.value = 0f
+                        val errorText = when (error) {
+                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. Try again."
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timed out."
+                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error."
+                            SpeechRecognizer.ERROR_CLIENT -> "Client recognition error."
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required."
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network error for recognition."
+                            else -> "Recognition error code: $error"
+                        }
+                        LogKeeper.log("VoiceManager", "SttError", errorText)
+                        onError(errorText)
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        _isListening.value = false
+                        _amplitude.value = 0f
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val text = matches?.firstOrNull() ?: ""
+                        LogKeeper.log("VoiceManager", "SttResults", "Final STT text: '$text'")
+                        if (text.isNotBlank()) {
+                            onFinalResult(text)
+                        }
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val partial = matches?.firstOrNull() ?: ""
+                        if (partial.isNotBlank()) {
+                            onPartialResult(partial)
+                        }
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+            }
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            }
+
+            speechRecognizer?.startListening(intent)
+            _isListening.value = true
+        } catch (e: Exception) {
+            _isListening.value = false
+            val errorMsg = "Could not start SpeechRecognizer: ${e.message}"
+            LogKeeper.log("VoiceManager", "SttException", errorMsg)
+            onError(errorMsg)
+        }
+    }
+
+    private fun startDirectAudioRecording(
+        context: Context,
+        onAudioRecorded: ((File) -> Unit)?,
+        onError: (String) -> Unit
+    ) {
         try {
             val recordingsDir = getAudioRecordingsDir(context)
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -168,7 +287,6 @@ object VoiceManager : TextToSpeech.OnInitListener {
             _isListening.value = true
             LogKeeper.log("VoiceManager", "DirectAudioStarted", "Direct recording started -> ${audioFile.name}")
 
-            // Live amplitude tracking
             amplitudeJob = scope.launch {
                 while (isActive && _isListening.value) {
                     try {
@@ -189,12 +307,22 @@ object VoiceManager : TextToSpeech.OnInitListener {
     }
 
     /**
-     * Stops the active audio recording and returns the recorded File & metadata.
+     * Stops the active audio recording or speech recognition.
      */
     fun stopListening(onAudioSaved: ((File) -> Unit)? = null) {
         amplitudeJob?.cancel()
         amplitudeJob = null
         _amplitude.value = 0f
+
+        mainHandler.post {
+            try {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+            } catch (e: Exception) {
+                LogKeeper.log("VoiceManager", "SpeechRecognizerStopError", "Error stopping SpeechRecognizer: ${e.message}")
+            }
+        }
 
         try {
             mediaRecorder?.apply {
@@ -202,7 +330,6 @@ object VoiceManager : TextToSpeech.OnInitListener {
                 release()
             }
             mediaRecorder = null
-            _isListening.value = false
 
             currentRecordingFile?.let { file ->
                 if (file.exists() && file.length() > 0) {

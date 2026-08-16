@@ -226,15 +226,22 @@ fun OmniRootApp() {
             }
             
             composable("settings") {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 GlobalSettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateTo = { destination ->
-                        if (destination == "audio_settings") {
-                            navController.navigate("audio_settings")
-                        } else if (destination == "settings/omniroot") {
-                            navController.navigate("ai_manager")
-                        } else {
-                            navController.navigate(destination)
+                        when (destination) {
+                            "settings/audio", "audio_settings" -> navController.navigate("audio_settings")
+                            "settings/omniroot", "ai_manager" -> navController.navigate("ai_manager")
+                            "settings/artifacts", "artifacts" -> navController.navigate("artifacts")
+                            "log_keeper" -> navController.navigate("log_keeper")
+                            else -> {
+                                try {
+                                    navController.navigate(destination)
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Module configuration coming soon", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     }
                 )

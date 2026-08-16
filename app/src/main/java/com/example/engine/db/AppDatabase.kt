@@ -24,8 +24,9 @@ import com.example.engine.db.ProviderPrepopulator
     ModelRatingEntity::class,
     RequestLogEntity::class,
     AiModelEntity::class,
-    ChatSettingsEntity::class
-], version = 12, exportSchema = false)
+    ChatSettingsEntity::class,
+    ArtifactEntity::class
+], version = 13, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workspaceConfigDao(): WorkspaceConfigDao
@@ -39,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun aiModelDao(): AiModelDao
     abstract fun modelRatingDao(): ModelRatingDao
     abstract fun chatSettingsDao(): ChatSettingsDao
-
+    abstract fun artifactDao(): ArtifactDao
 
     companion object {
         val MIGRATION_5_6 = object : Migration(5, 6) {
@@ -61,7 +62,6 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `model_ratings` (`messageId` TEXT NOT NULL, `modelName` TEXT NOT NULL, `providerId` TEXT NOT NULL, `isPositive` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`messageId`))")
             }
         }
-
 
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -87,6 +87,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `artifacts` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `type` TEXT NOT NULL, `content` TEXT NOT NULL, `isPinned` INTEGER NOT NULL DEFAULT 0, `updatedAt` INTEGER NOT NULL, `workspaceId` TEXT, PRIMARY KEY(`id`))")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
         fun getDatabase(context: Context): AppDatabase {
@@ -97,7 +103,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "omnivian_database"
                 )
                 .addCallback(DatabaseCallback())
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance
