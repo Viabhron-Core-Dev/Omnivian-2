@@ -5,127 +5,138 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="8dp">
 
-    <!-- Top Bar: Search / Ask prompt & Quick Voice -->
-    <LinearLayout
-        android:id="@+id/widget_search_bar"
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:background="@drawable/widget_search_bar_bg"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="12dp">
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:contentDescription="OmniRoot AI"
-            android:src="@drawable/ic_widget_sparkle" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:text="@string/widget_prompt_hint"
-            android:textColor="#B0B3C7"
-            android:textSize="13sp" />
-
-        <ImageView
-            android:id="@+id/widget_btn_quick_voice"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:background="@drawable/widget_button_bg"
-            android:contentDescription="Voice Input"
-            android:padding="4dp"
-            android:src="@drawable/ic_widget_mic" />
-    </LinearLayout>
-
+    <!-- Row 1 (Top): New Chat & Mode Toggle -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="10dp"
         android:layout_weight="1"
-        android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- Action 1: New Temp Chat -->
+        <!-- Button 1: New Chat -->
         <LinearLayout
             android:id="@+id/widget_btn_new_chat"
             android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_margin="3dp"
             android:layout_weight="1"
+            android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:padding="6dp">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/widget_button_bg"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
                 android:contentDescription="New Chat"
-                android:padding="6dp"
                 android:src="@drawable/ic_widget_chat" />
 
             <TextView
+                android:id="@+id/widget_text_new_chat"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginStart="6dp"
                 android:text="New Chat"
-                android:textColor="#E0E2EC"
-                android:textSize="11sp" />
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Action 2: Voice Chat -->
+        <!-- Button 2: Mode Toggle (Persistent vs Temp) -->
         <LinearLayout
-            android:id="@+id/widget_btn_voice_mode"
+            android:id="@+id/widget_btn_toggle_mode"
             android:layout_width="0dp"
             android:layout_height="match_parent"
+            android:layout_margin="3dp"
             android:layout_weight="1"
+            android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:padding="6dp">
 
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/widget_button_bg"
-                android:contentDescription="Voice Mode"
-                android:padding="6dp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="Toggle Mode"
+                android:src="@drawable/ic_widget_toggle" />
+
+            <TextView
+                android:id="@+id/widget_text_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="Persistent"
+                android:textColor="#80D8FF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Row 2 (Bottom): Camera & Voice (Tap Send / Hold Note) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- Button 3: Camera -->
+        <LinearLayout
+            android:id="@+id/widget_btn_camera"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="3dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_button_bg"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="Camera Chat"
+                android:src="@drawable/ic_widget_camera" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="Camera"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Button 4: Voice (Tap to Record/Send AI TTS, Long Press for Note) -->
+        <LinearLayout
+            android:id="@+id/widget_btn_voice"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="3dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_button_bg"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <ImageView
+                android:id="@+id/widget_icon_voice"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="Voice Action"
                 android:src="@drawable/ic_widget_mic" />
 
             <TextView
+                android:id="@+id/widget_text_voice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Voice"
-                android:textColor="#E0E2EC"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <!-- Action 3: Code Workspace -->
-        <LinearLayout
-            android:id="@+id/widget_btn_code_workspace"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/widget_button_bg"
-                android:contentDescription="Code Workspace"
-                android:padding="6dp"
-                android:src="@drawable/ic_widget_code" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Workspace"
-                android:textColor="#E0E2EC"
-                android:textSize="11sp" />
+                android:layout_marginStart="6dp"
+                android:text="Voice AI"
+                android:textColor="#C8E6C9"
+                android:textSize="12sp"
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
+
 </LinearLayout>

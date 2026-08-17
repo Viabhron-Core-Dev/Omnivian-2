@@ -357,56 +357,32 @@ fun OpenedArtifactViewerDialog(
             color = MaterialTheme.colorScheme.background
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Drag-Down / Close Header Area
+                // Top Header Area (Title, Refresh, Close)
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
                     tonalElevation = 3.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Drag Indicator Bar (Tap to close)
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .width(40.dp)
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(MaterialTheme.colorScheme.outlineVariant)
-                                .clickable { onDismiss() }
+                        Text(
+                            text = artifact.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                IconButton(onClick = onDismiss) {
-                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Close Viewer", modifier = Modifier.size(32.dp))
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Column {
-                                    Text(
-                                        text = artifact.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "Tap drag-bar or arrow to close",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
                             if (artifact.type == "COLOR_NOTES") {
                                 Button(
                                     onClick = {
@@ -415,12 +391,26 @@ fun OpenedArtifactViewerDialog(
                                         notesList = updated
                                         onSave(artifact.copy(content = serializeNotes(updated), updatedAt = System.currentTimeMillis()))
                                     },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Add Note")
                                 }
+                            }
+
+                            IconButton(onClick = {
+                                if (artifact.type == "COLOR_NOTES") {
+                                    notesList = parseNotes(artifact.content)
+                                } else {
+                                    htmlContent = artifact.content
+                                }
+                            }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                            }
+
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Default.Close, contentDescription = "Close")
                             }
                         }
                     }

@@ -154,7 +154,7 @@ class OmniRootProxyServer(port: Int, private val context: Context) : NanoHTTPD("
                     updatedRequest.messages.forEach { combinedInputText += it.content + " " }
                     val inputTokens = CompressionEngine.estimateTokens(combinedInputText)
 
-                    val translatedPayload = TranslationEngine.translateRequest(updatedRequest, targetFormat)
+                    val translatedPayload = TranslationEngine.translateRequest(updatedRequest, targetFormat, context)
                     LogKeeper.log("Proxy", "Routing request to $providerId ($actualModelName)", translatedPayload)
 
                     val reqBuilder = Request.Builder()

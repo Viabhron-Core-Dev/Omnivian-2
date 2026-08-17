@@ -40,56 +40,31 @@ fun PWAPreviewBottomSheet(
             color = MaterialTheme.colorScheme.background
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Drag / Dismiss Header
+                // Top Header (Title, Refresh, Close)
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
                     tonalElevation = 3.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Drag Indicator Bar
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .width(40.dp)
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(MaterialTheme.colorScheme.outlineVariant)
-                                .clickable { onDismiss() }
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
                         )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = onDismiss) {
-                                    Icon(
-                                        Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Close",
-                                        modifier = Modifier.size(30.dp)
-                                    )
-                                }
-                                Text(
-                                    title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                        Row {
+                            IconButton(onClick = { webView?.reload() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reload")
                             }
-                            Row {
-                                IconButton(onClick = { webView?.reload() }) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Reload")
-                                }
-                                IconButton(onClick = onDismiss) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close")
-                                }
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Default.Close, contentDescription = "Close")
                             }
                         }
                     }

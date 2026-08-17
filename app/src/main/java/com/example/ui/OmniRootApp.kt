@@ -72,9 +72,21 @@ fun OmniRootApp() {
         if (uri != null || action != null) {
             val uriStr = uri?.toString() ?: ""
             if (uriStr.contains("chat/new") || action == "open_chat") {
-                val newTempId = "temp_${System.currentTimeMillis()}"
-                com.example.engine.fs.LocalFileManager.setWorkspaceName(newTempId, "🔥 Quick Chat")
-                chatSessionId = newTempId
+                val isTemp = uri?.getBooleanQueryParameter("temp", false) ?: false
+                if (isTemp) {
+                    val newTempId = "temp_${System.currentTimeMillis()}"
+                    com.example.engine.fs.LocalFileManager.setWorkspaceName(newTempId, "🔥 Quick Chat")
+                    chatSessionId = newTempId
+                }
+                currentTab = AppTab.CHAT
+                navController.navigate("main") { popUpTo("main") { inclusive = true } }
+            } else if (uriStr.contains("chat/camera") || action == "open_camera") {
+                val isTemp = uri?.getBooleanQueryParameter("temp", false) ?: false
+                if (isTemp) {
+                    val newTempId = "temp_${System.currentTimeMillis()}"
+                    com.example.engine.fs.LocalFileManager.setWorkspaceName(newTempId, "📷 Camera Chat")
+                    chatSessionId = newTempId
+                }
                 currentTab = AppTab.CHAT
                 navController.navigate("main") { popUpTo("main") { inclusive = true } }
             } else if (uriStr.contains("chat/voice") || action == "voice_mode") {

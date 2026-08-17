@@ -17,7 +17,8 @@ object TranslationEngine {
         GEMINI
     }
 
-    fun translateRequest(request: OmniRequest, targetFormat: ProviderFormat): String {
+    fun translateRequest(request: OmniRequest, targetFormat: ProviderFormat, context: android.content.Context? = null): String {
+        val audioRegex = Regex("\\[Audio:\\s*([a-zA-Z0-9_\\-\\.]+)\\]")
         return when (targetFormat) {
             ProviderFormat.OPENAI -> {
                 val json = JSONObject()
@@ -26,9 +27,46 @@ object TranslationEngine {
                 request.messages.forEach { msg ->
                     val msgObj = JSONObject()
                     msgObj.put("role", msg.role)
-                    if (msg.content != null) msgObj.put("content", msg.content)
                     if (msg.name != null) msgObj.put("name", msg.name)
                     if (msg.tool_call_id != null) msgObj.put("tool_call_id", msg.tool_call_id)
+                    
+                    val contentStr = msg.content ?: ""
+                    val audioMatch = audioRegex.find(contentStr)
+                    val audioFileName = audioMatch?.groupValues?.getOrNull(1)
+                    val audioFile = if (context != null && audioFileName != null) {
+                        java.io.File(context.filesDir, "recordings/$audioFileName")
+                    } else null
+
+                    if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                        val contentArray = JSONArray()
+                        val cleanText = contentStr.replace(audioRegex, "").trim()
+                        if (cleanText.isNotBlank()) {
+                            contentArray.put(JSONObject().apply {
+                                put("type", "text")
+                                put("text", cleanText)
+                            })
+                        } else {
+                            contentArray.put(JSONObject().apply {
+                                put("type", "text")
+                                put("text", "Please listen to this voice audio input and answer:")
+                            })
+                        }
+                        try {
+                            val audioBytes = audioFile.readBytes()
+                            val b64 = android.util.Base64.encodeToString(audioBytes, android.util.Base64.NO_WRAP)
+                            val audioPart = JSONObject().apply {
+                                put("type", "input_audio")
+                                put("input_audio", JSONObject().apply {
+                                    put("data", b64)
+                                    put("format", "mp3")
+                                })
+                            }
+                            contentArray.put(audioPart)
+                        } catch (_: Exception) {}
+                        msgObj.put("content", contentArray)
+                    } else {
+                        if (msg.content != null) msgObj.put("content", msg.content)
+                    }
                     
                     if (msg.tool_calls != null) {
                         val tcArray = JSONArray()
@@ -181,10 +219,33 @@ object TranslationEngine {
                         contentObj.put("role", role)
                         val partsArray = JSONArray()
                         
-                        if (msg.content != null) {
-                            val partObj = JSONObject()
-                            partObj.put("text", msg.content)
-                            partsArray.put(partObj)
+                        val contentStr = msg.content ?: ""
+                        val audioMatch = audioRegex.find(contentStr)
+                        val audioFileName = audioMatch?.groupValues?.getOrNull(1)
+                        val audioFile = if (context != null && audioFileName != null) {
+                            java.io.File(context.filesDir, "recordings/$audioFileName")
+                        } else null
+
+                        if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                            val cleanText = contentStr.replace(audioRegex, "").trim()
+                            if (cleanText.isNotBlank()) {
+                                partsArray.put(JSONObject().apply { put("text", cleanText) })
+                            }
+                            try {
+                                val audioBytes = audioFile.readBytes()
+                                val b64 = android.util.Base64.encodeToString(audioBytes, android.util.Base64.NO_WRAP)
+                                val inlineData = JSONObject().apply {
+                                    put("mimeType", "audio/mp4")
+                                    put("data", b64)
+                                }
+                                partsArray.put(JSONObject().apply { put("inlineData", inlineData) })
+                            } catch (_: Exception) {}
+                        } else {
+                            if (msg.content != null) {
+                                val partObj = JSONObject()
+                                partObj.put("text", msg.content)
+                                partsArray.put(partObj)
+                            }
                         }
                         if (msg.tool_calls != null) {
                             msg.tool_calls.forEach { tc ->
