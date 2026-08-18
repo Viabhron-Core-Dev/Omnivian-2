@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.UnfoldLess
 
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
@@ -44,6 +46,14 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import androidx.core.content.FileProvider
+import android.net.Uri
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -91,6 +101,8 @@ data class ChatMessage(
 @Composable
 fun ChatScreen(
     sessionId: String,
+    initialCameraTrigger: Boolean = false,
+    onCameraTriggerConsumed: () -> Unit = {},
     onMenuClick: () -> Unit,
     onNavigateToThreadSettings: () -> Unit = {},
     onSessionPromoted: (String) -> Unit = {}
@@ -101,6 +113,8 @@ fun ChatScreen(
     val isTemporaryChat = remember(sessionId) { sessionId.startsWith("temp_") }
     val workspaceName = remember { mutableStateOf(com.example.engine.fs.LocalFileManager.getWorkspaceName(sessionId)) }
     var inputText by remember { mutableStateOf("") }
+    var pendingAttachmentUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isServerRunning by PreviewServerManager.isRunning.collectAsState()
@@ -113,6 +127,44 @@ fun ChatScreen(
     var isGenerating by remember { mutableStateOf(false) }
     var currentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var selectedModel by remember { mutableStateOf("Select Model") }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && pendingCameraPhotoUri != null) {
+            pendingAttachmentUri = pendingCameraPhotoUri
+            Toast.makeText(context, "Photo captured and attached to prompt", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val photoFile = File(context.cacheDir, "camera_photo_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                pendingCameraPhotoUri = uri
+                takePictureLauncher.launch(uri)
+            } catch (e: Exception) {
+                LogKeeper.log("ChatScreen", "CameraError", "Failed to launch camera: ${e.message}")
+                Toast.makeText(context, "Failed to start camera: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission is required to capture photos.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCamera() {
+        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
+    LaunchedEffect(initialCameraTrigger) {
+        if (initialCameraTrigger) {
+            launchCamera()
+            onCameraTriggerConsumed()
+        }
+    }
     
     val isListening by VoiceManager.isListening.collectAsState()
     val audioAmplitude by VoiceManager.amplitude.collectAsState()
@@ -127,8 +179,15 @@ fun ChatScreen(
                 onAudioRecorded = { file ->
                     recordedVoiceFile = file
                     val engine = VoiceManager.getSttEngine(context)
-                    if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
-                        inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
+                    val current = inputText.trim()
+                    if (engine == VoiceManager.ENGINE_CUSTOM_MODEL) {
+                        val modelName = VoiceManager.getSelectedModelPath(context)?.substringAfterLast("/") ?: "Custom Audio Model"
+                        val voiceNoteTag = "[Audio Note: ${file.name} ($modelName)]"
+                        inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
+                        Toast.makeText(context, "Recorded with $modelName", Toast.LENGTH_SHORT).show()
+                    } else if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
+                        val voiceNoteTag = "[Audio: ${file.name}]"
+                        inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
                         Toast.makeText(context, "Voice note recorded (${file.name})", Toast.LENGTH_SHORT).show()
                     }
                 },
@@ -301,10 +360,53 @@ fun ChatScreen(
                     Icon(Icons.Default.MoreVert, contentDescription = "More Options")
                 }
                 
+                var showForkDialog by remember { mutableStateOf(false) }
+                var showSaveAsArtifactDialog by remember { mutableStateOf(false) }
+                val isArtifactWorkspace = remember(sessionId) {
+                    sessionId.startsWith("artifact_") || com.example.engine.fs.ArtifactWorkspaceManager.getArtifactIdForWorkspace(sessionId) != null
+                }
+
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
+                    if (isArtifactWorkspace) {
+                        DropdownMenuItem(
+                            text = { Text("Save to Artifact") },
+                            leadingIcon = { Icon(Icons.Default.Save, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            onClick = {
+                                showMenu = false
+                                scope.launch {
+                                    val result = com.example.engine.fs.ArtifactWorkspaceManager.saveWorkspaceToArtifact(context, sessionId)
+                                    if (result.isSuccess) {
+                                        Toast.makeText(context, "Saved changes back to Artifact!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Failed to save: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Fork / Save as New Artifact") },
+                            leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                            onClick = {
+                                showMenu = false
+                                showForkDialog = true
+                            }
+                        )
+                        HorizontalDivider()
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Save as Artifact (mini app)") },
+                            leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            onClick = {
+                                showMenu = false
+                                showSaveAsArtifactDialog = true
+                            }
+                        )
+                        HorizontalDivider()
+                    }
+
                     DropdownMenuItem(
                         text = { Text("Fold All") },
                         leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null) },
@@ -345,6 +447,89 @@ fun ChatScreen(
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         onClick = { showMenu = false }
+                    )
+                }
+
+                if (showForkDialog) {
+                    var forkTitle by remember { mutableStateOf("${workspaceName.value} (Fork)") }
+                    AlertDialog(
+                        onDismissRequest = { showForkDialog = false },
+                        title = { Text("Fork to New Artifact") },
+                        text = {
+                            OutlinedTextField(
+                                value = forkTitle,
+                                onValueChange = { forkTitle = it },
+                                label = { Text("Forked Artifact Title") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (forkTitle.isNotBlank()) {
+                                    scope.launch {
+                                        val result = com.example.engine.fs.ArtifactWorkspaceManager.forkWorkspaceToNewArtifact(context, sessionId, forkTitle.trim())
+                                        if (result.isSuccess) {
+                                            val (newEntity, newWsId) = result.getOrThrow()
+                                            Toast.makeText(context, "Forked to new artifact '${newEntity.title}'!", Toast.LENGTH_SHORT).show()
+                                            onSessionPromoted(newWsId)
+                                        } else {
+                                            Toast.makeText(context, "Fork failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                        showForkDialog = false
+                                    }
+                                }
+                            }) {
+                                Text("Fork")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showForkDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+
+                if (showSaveAsArtifactDialog) {
+                    var artifactTitle by remember { mutableStateOf(workspaceName.value) }
+                    AlertDialog(
+                        onDismissRequest = { showSaveAsArtifactDialog = false },
+                        title = { Text("Save as Artifact (mini app)") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Save this workspace HTML/PWA app to your Artifacts library.", style = MaterialTheme.typography.bodySmall)
+                                OutlinedTextField(
+                                    value = artifactTitle,
+                                    onValueChange = { artifactTitle = it },
+                                    label = { Text("Artifact Title") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (artifactTitle.isNotBlank()) {
+                                    scope.launch {
+                                        val result = com.example.engine.fs.ArtifactWorkspaceManager.saveCurrentChatAsArtifact(context, sessionId, artifactTitle.trim())
+                                        if (result.isSuccess) {
+                                            Toast.makeText(context, "Saved to Artifacts (mini apps)!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Save failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                        showSaveAsArtifactDialog = false
+                                    }
+                                }
+                            }) {
+                                Text("Save")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showSaveAsArtifactDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
                     )
                 }
 
@@ -417,12 +602,64 @@ fun ChatScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 2.dp
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
+                // Staged Image Preview Chip
+                pendingAttachmentUri?.let { uri ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(6.dp)
+                        ) {
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = "Attached Image Preview",
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = "Attached Image",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = uri.lastPathSegment ?: "image",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { pendingAttachmentUri = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove Attachment",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 TextField(
                     value = inputText,
                     onValueChange = { inputText = it },
@@ -519,10 +756,17 @@ fun ChatScreen(
                                 if (isListening) {
                                     VoiceManager.stopListening { file ->
                                         val engine = VoiceManager.getSttEngine(context)
-                                        if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
-                                            recordedVoiceFile = file
-                                            inputText = if (inputText.isBlank()) "[Audio: ${file.name}]" else "$inputText [Audio: ${file.name}]"
-                                            Toast.makeText(context, "Recorded: ${file.name}", Toast.LENGTH_SHORT).show()
+                                        recordedVoiceFile = file
+                                        val current = inputText.trim()
+                                        if (engine == VoiceManager.ENGINE_CUSTOM_MODEL) {
+                                            val modelName = VoiceManager.getSelectedModelPath(context)?.substringAfterLast("/") ?: "Custom Audio Model"
+                                            val voiceNoteTag = "[Audio Note: ${file.name} ($modelName)]"
+                                            inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
+                                            Toast.makeText(context, "Voice recorded with $modelName", Toast.LENGTH_SHORT).show()
+                                        } else if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
+                                            val voiceNoteTag = "[Audio: ${file.name}]"
+                                            inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
+                                            Toast.makeText(context, "Voice note ready: ${file.name}", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 } else {
@@ -546,8 +790,17 @@ fun ChatScreen(
                                 if (isGenerating) {
                                     currentJob?.cancel()
                                     isGenerating = false
-                                } else if (inputText.isNotBlank()) {
-                                    val prompt = inputText
+                                } else if (inputText.isNotBlank() || pendingAttachmentUri != null) {
+                                    val currentAttachment = pendingAttachmentUri
+                                    val prompt = buildString {
+                                        if (inputText.isNotBlank()) {
+                                            append(inputText.trim())
+                                        }
+                                        if (currentAttachment != null) {
+                                            if (isNotEmpty()) append(" ")
+                                            append("[Attached Image: $currentAttachment]")
+                                        }
+                                    }
                                     
                                     // Mini-Phase 8.4: Auto-fold all previous messages and persist for active turn isolation
                                     chatMessages.indices.forEach { i ->
@@ -562,6 +815,7 @@ fun ChatScreen(
                                     chatMessages.add(msg)
                                     saveMessage(msg)
                                     inputText = ""
+                                    pendingAttachmentUri = null
                                     
 
                                     val parts = selectedModel.split("/", limit = 2)
@@ -774,10 +1028,12 @@ fun ChatScreen(
                 onOptionSelected = { option ->
                     // Handle attachment logic here
                     when(option) {
+                        is AttachmentOption.LaunchCamera -> {
+                            launchCamera()
+                        }
                         is AttachmentOption.ImageUri -> {
-                            val msg = ChatMessage(text = "Selected image: ${option.uri}", role = MessageRole.USER)
-                            chatMessages.add(msg)
-                            saveMessage(msg)
+                            pendingAttachmentUri = option.uri
+                            Toast.makeText(context, "Image attached to prompt", Toast.LENGTH_SHORT).show()
                         }
                         is AttachmentOption.FileUri -> {
                             val msg = ChatMessage(text = "Selected file: ${option.uri}", role = MessageRole.USER)
@@ -787,13 +1043,13 @@ fun ChatScreen(
                                 val result = com.example.engine.fs.TextExtractor.extractTextFromUri(context, option.uri)
                                 if (result.isSuccess) {
                                     val text = result.getOrNull()
-                                    val msg = ChatMessage(text = "File content extracted (${text?.length} chars)", role = MessageRole.APP_ACTION)
-                                    chatMessages.add(msg)
-                                    saveMessage(msg)
+                                    val actMsg = ChatMessage(text = "File content extracted (${text?.length} chars)", role = MessageRole.APP_ACTION)
+                                    chatMessages.add(actMsg)
+                                    saveMessage(actMsg)
                                 } else {
-                                    val msg = ChatMessage(text = "Failed to extract text", role = MessageRole.APP_ACTION)
-                                    chatMessages.add(msg)
-                                    saveMessage(msg)
+                                    val actMsg = ChatMessage(text = "Failed to extract text", role = MessageRole.APP_ACTION)
+                                    chatMessages.add(actMsg)
+                                    saveMessage(actMsg)
                                 }
                             }
                         }
@@ -809,13 +1065,13 @@ fun ChatScreen(
                                 if (result.isSuccess) {
                                     com.example.engine.fs.LocalFileManager.unzipFile(destZip, destFolder)
                                     destZip.delete()
-                                    val msg = ChatMessage(text = "Successfully imported GitHub repo '$repoName' into workspace.", role = MessageRole.APP_ACTION)
-                                    chatMessages.add(msg)
-                                    saveMessage(msg)
+                                    val actMsg = ChatMessage(text = "Successfully imported GitHub repo '$repoName' into workspace.", role = MessageRole.APP_ACTION)
+                                    chatMessages.add(actMsg)
+                                    saveMessage(actMsg)
                                 } else {
-                                    val msg = ChatMessage(text = "Failed to import repo: ${result.exceptionOrNull()?.message}", role = MessageRole.APP_ACTION)
-                                    chatMessages.add(msg)
-                                    saveMessage(msg)
+                                    val actMsg = ChatMessage(text = "Failed to import repo: ${result.exceptionOrNull()?.message}", role = MessageRole.APP_ACTION)
+                                    chatMessages.add(actMsg)
+                                    saveMessage(actMsg)
                                 }
                             }
                         }

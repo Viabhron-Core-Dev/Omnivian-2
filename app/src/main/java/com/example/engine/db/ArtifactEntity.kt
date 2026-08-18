@@ -1,5 +1,6 @@
 package com.example.engine.db
 
+import android.database.Cursor
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
@@ -11,7 +12,12 @@ data class ArtifactEntity(
     val content: String, // JSON payload for notes, or raw HTML / code
     val isPinned: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis(),
-    val workspaceId: String? = null
+    val workspaceId: String? = null,
+    val iconUri: String? = null,
+    val isLightweight: Boolean = false,
+    val manifestJson: String? = null,
+    val settingsJson: String? = null,
+    val version: Long = 1L
 )
 
 @Dao
@@ -24,6 +30,12 @@ interface ArtifactDao {
 
     @Query("SELECT * FROM artifacts WHERE id = :id LIMIT 1")
     suspend fun getArtifactById(id: String): ArtifactEntity?
+
+    @Query("SELECT * FROM artifacts WHERE type IN ('HTML', 'PWA', 'REACT') ORDER BY isPinned DESC, updatedAt DESC")
+    fun getPwaArtifactsCursor(): Cursor
+
+    @Query("SELECT * FROM artifacts WHERE id = :id LIMIT 1")
+    fun getArtifactCursorById(id: String): Cursor
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertArtifact(artifact: ArtifactEntity)

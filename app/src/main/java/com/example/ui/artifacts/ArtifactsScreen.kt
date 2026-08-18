@@ -62,7 +62,8 @@ val NOTE_COLORS = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtifactsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onEditInChatCode: ((ArtifactEntity) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -123,7 +124,7 @@ fun ArtifactsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Artifacts & Voice Notes", fontWeight = FontWeight.Bold) },
+                title = { Text("Artifacts (mini apps)", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -156,6 +157,16 @@ fun ArtifactsScreen(
                         ArtifactListItemCard(
                             artifact = artifact,
                             onClick = { selectedArtifact = artifact },
+                            onEditInChatCode = {
+                                if (onEditInChatCode != null) {
+                                    onEditInChatCode(artifact)
+                                } else {
+                                    scope.launch {
+                                        com.example.engine.fs.ArtifactWorkspaceManager.openArtifactInWorkspace(context, artifact)
+                                        Toast.makeText(context, "Loaded into workspace. Switch to Chat/Code tabs to edit with AI.", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
                             onDelete = {
                                 scope.launch(Dispatchers.IO) {
                                     artifactDao.deleteArtifact(artifact)
@@ -172,6 +183,18 @@ fun ArtifactsScreen(
             OpenedArtifactViewerDialog(
                 artifact = current,
                 onDismiss = { selectedArtifact = null },
+                onEditInChatCode = {
+                    val target = selectedArtifact ?: current
+                    selectedArtifact = null
+                    if (onEditInChatCode != null) {
+                        onEditInChatCode(target)
+                    } else {
+                        scope.launch {
+                            com.example.engine.fs.ArtifactWorkspaceManager.openArtifactInWorkspace(context, target)
+                            Toast.makeText(context, "Loaded into workspace. Switch to Chat/Code tabs to edit with AI.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
                 onSave = { updatedEntity ->
                     scope.launch(Dispatchers.IO) {
                         artifactDao.updateArtifact(updatedEntity)
@@ -251,6 +274,7 @@ fun ArtifactsScreen(
 fun ArtifactListItemCard(
     artifact: ArtifactEntity,
     onClick: () -> Unit,
+    onEditInChatCode: () -> Unit,
     onDelete: () -> Unit
 ) {
     val dateStr = remember(artifact.updatedAt) {
@@ -318,6 +342,14 @@ fun ArtifactListItemCard(
                 )
             }
 
+            IconButton(onClick = onEditInChatCode) {
+                Icon(
+                    Icons.Default.SmartToy,
+                    contentDescription = "Edit with AI in Chat & Code",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.DeleteOutline,
@@ -338,6 +370,7 @@ fun ArtifactListItemCard(
 fun OpenedArtifactViewerDialog(
     artifact: ArtifactEntity,
     onDismiss: () -> Unit,
+    onEditInChatCode: () -> Unit,
     onSave: (ArtifactEntity) -> Unit
 ) {
     val context = LocalContext.current
@@ -357,7 +390,7 @@ fun OpenedArtifactViewerDialog(
             color = MaterialTheme.colorScheme.background
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Header Area (Title, Refresh, Close)
+                // Top Header Area (Title, Edit with AI, Refresh, Close)
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
                     tonalElevation = 3.dp,
@@ -383,6 +416,16 @@ fun OpenedArtifactViewerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            Button(
+                                onClick = onEditInChatCode,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Edit with AI", fontSize = 12.sp)
+                            }
+
                             if (artifact.type == "COLOR_NOTES") {
                                 Button(
                                     onClick = {

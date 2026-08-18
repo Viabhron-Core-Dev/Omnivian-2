@@ -55,7 +55,7 @@ fun GlobalSidebar(
         
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Code, contentDescription = null) },
-            label = { Text("Artifacts") },
+            label = { Text("Artifacts (mini apps)") },
             selected = false,
             onClick = { 
                 onNavigateToArtifacts()

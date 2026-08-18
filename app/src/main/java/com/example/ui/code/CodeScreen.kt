@@ -43,6 +43,7 @@ fun CodeScreen(onMenuClick: () -> Unit) {
     var showGoToLineDialog by remember { mutableStateOf(false) }
     var showSyntaxCheckDialog by remember { mutableStateOf(false) }
     var showSaveAsPRDialog by remember { mutableStateOf(false) }
+    var showForkArtifactDialog by remember { mutableStateOf(false) }
     val workspaceName = remember(com.example.engine.fs.LocalFileManager.getWorkspaceDir().name) { 
         mutableStateOf(com.example.engine.fs.LocalFileManager.getWorkspaceName(com.example.engine.fs.LocalFileManager.getWorkspaceDir().name)) 
     }
@@ -119,6 +120,58 @@ fun CodeScreen(onMenuClick: () -> Unit) {
                                     expanded = showMenu,
                                     onDismissRequest = { showMenu = false }
                                 ) {
+                                    val currentWsDir = remember { com.example.engine.fs.LocalFileManager.getWorkspaceDir().name }
+                                    val isArtifactWs = remember(currentWsDir) {
+                                        currentWsDir.startsWith("artifact_") || com.example.engine.fs.ArtifactWorkspaceManager.getArtifactIdForWorkspace(currentWsDir) != null
+                                    }
+
+                                    if (isArtifactWs) {
+                                        DropdownMenuItem(
+                                            text = { Text("Save to Artifact") },
+                                            leadingIcon = { Icon(Icons.Default.Save, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                            onClick = {
+                                                showMenu = false
+                                                editorState.saveFile()
+                                                scope.launch {
+                                                    val result = com.example.engine.fs.ArtifactWorkspaceManager.saveWorkspaceToArtifact(context, currentWsDir)
+                                                    if (result.isSuccess) {
+                                                        Toast.makeText(context, "Saved changes back to Artifact!", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "Failed to save: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Fork / Save as New Artifact") },
+                                            leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                                            onClick = {
+                                                showMenu = false
+                                                editorState.saveFile()
+                                                showForkArtifactDialog = true
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                    } else {
+                                        DropdownMenuItem(
+                                            text = { Text("Save as Artifact (mini app)") },
+                                            leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                            onClick = {
+                                                showMenu = false
+                                                editorState.saveFile()
+                                                scope.launch {
+                                                    val result = com.example.engine.fs.ArtifactWorkspaceManager.saveCurrentChatAsArtifact(context, currentWsDir, workspaceName.value)
+                                                    if (result.isSuccess) {
+                                                        Toast.makeText(context, "Saved to Artifacts (mini apps)!", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "Save failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                    }
+
                                     DropdownMenuItem(
                                         text = { Text("Toggle Line Wrap: ${if (editorState.isLineWrapEnabled) "ON" else "OFF"}") },
                                         onClick = { 
@@ -163,6 +216,48 @@ fun CodeScreen(onMenuClick: () -> Unit) {
                         SyntaxCheckDialog(editorState = editorState, onDismiss = { showSyntaxCheckDialog = false })
                     }
                     
+                    if (showForkArtifactDialog) {
+                        var forkTitle by remember { mutableStateOf("${workspaceName.value} (Fork)") }
+                        val currentWs = com.example.engine.fs.LocalFileManager.getWorkspaceDir().name
+                        AlertDialog(
+                            onDismissRequest = { showForkArtifactDialog = false },
+                            title = { Text("Fork to New Artifact") },
+                            text = {
+                                OutlinedTextField(
+                                    value = forkTitle,
+                                    onValueChange = { forkTitle = it },
+                                    label = { Text("Forked Artifact Title") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    if (forkTitle.isNotBlank()) {
+                                        scope.launch {
+                                            val result = com.example.engine.fs.ArtifactWorkspaceManager.forkWorkspaceToNewArtifact(context, currentWs, forkTitle.trim())
+                                            if (result.isSuccess) {
+                                                val (newEntity, _) = result.getOrThrow()
+                                                workspaceName.value = newEntity.title
+                                                Toast.makeText(context, "Forked to new artifact '${newEntity.title}'!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Fork failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                            showForkArtifactDialog = false
+                                        }
+                                    }
+                                }) {
+                                    Text("Fork")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showForkArtifactDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+
                     if (showSaveAsPRDialog && selectedFile != null) {
                         var prTitle by remember { mutableStateOf("") }
                         var prDesc by remember { mutableStateOf("") }

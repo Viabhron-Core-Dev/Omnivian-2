@@ -12,12 +12,20 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
+    <permission
+        android:name="com.ai.app.permission.ACCESS_PWA_DATA"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.ai.app.permission.ACCESS_PWA_DATA" />
+
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
             <action android:name="android.intent.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="com.ai.app.ACTION_PWA_HOST" />
         </intent>
     </queries>
 
@@ -69,6 +77,23 @@
             android:name=".engine.omniroot.service.OmniRootProxyService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <service
+            android:name=".engine.service.AiInferenceService"
+            android:permission="com.ai.app.permission.ACCESS_PWA_DATA"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.ai.app.ACTION_AI_INFERENCE_SERVICE" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name=".engine.provider.PwaContentProvider"
+            android:authorities="com.example.provider.pwa"
+            android:exported="true"
+            android:readPermission="com.ai.app.permission.ACCESS_PWA_DATA"
+            android:writePermission="com.ai.app.permission.ACCESS_PWA_DATA"
+            android:grantUriPermissions="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

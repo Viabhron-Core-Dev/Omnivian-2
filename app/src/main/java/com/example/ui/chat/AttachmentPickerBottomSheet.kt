@@ -85,6 +85,16 @@ fun AttachmentPickerBottomSheet(
             )
             
             AttachmentOptionItem(
+                icon = Icons.Default.CameraAlt,
+                title = "Camera",
+                subtitle = "Take a photo directly",
+                onClick = {
+                    onOptionSelected(AttachmentOption.LaunchCamera)
+                    onDismiss()
+                }
+            )
+
+            AttachmentOptionItem(
                 icon = Icons.Default.Image,
                 title = "Images",
                 subtitle = "Select an image from device",
@@ -161,6 +171,7 @@ fun AttachmentOptionItem(
 }
 
 sealed class AttachmentOption {
+    object LaunchCamera : AttachmentOption()
     data class ImageUri(val uri: Uri) : AttachmentOption()
     data class FileUri(val uri: Uri) : AttachmentOption()
     data class GithubRepo(val url: String) : AttachmentOption()

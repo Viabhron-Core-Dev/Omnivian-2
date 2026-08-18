@@ -23,8 +23,8 @@
             android:layout_weight="1"
             android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="4dp">
 
             <ImageView
                 android:layout_width="22dp"
@@ -36,10 +36,13 @@
                 android:id="@+id/widget_text_new_chat"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginTop="3dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="New Chat"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -52,8 +55,8 @@
             android:layout_weight="1"
             android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="4dp">
 
             <ImageView
                 android:layout_width="22dp"
@@ -65,10 +68,13 @@
                 android:id="@+id/widget_text_mode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginTop="3dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="Persistent"
                 android:textColor="#80D8FF"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
@@ -89,8 +95,8 @@
             android:layout_weight="1"
             android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="4dp">
 
             <ImageView
                 android:layout_width="22dp"
@@ -101,10 +107,13 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginTop="3dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="Camera"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -117,8 +126,8 @@
             android:layout_weight="1"
             android:background="@drawable/widget_button_bg"
             android:gravity="center"
-            android:orientation="horizontal"
-            android:padding="6dp">
+            android:orientation="vertical"
+            android:padding="4dp">
 
             <ImageView
                 android:id="@+id/widget_icon_voice"
@@ -131,10 +140,13 @@
                 android:id="@+id/widget_text_voice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginTop="3dp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="Voice AI"
                 android:textColor="#C8E6C9"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>

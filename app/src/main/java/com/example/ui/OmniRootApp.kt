@@ -1,8 +1,13 @@
 package com.example.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.*
@@ -30,6 +35,7 @@ import com.example.ui.settings.omniroot.DirectToKeyWebViewScreen
 import com.example.ui.sidebar.GlobalSidebar
 import kotlinx.coroutines.launch
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun OmniRootApp() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -62,6 +68,8 @@ fun OmniRootApp() {
     val navController = rememberNavController()
     var showNewChatDialog by remember { mutableStateOf(false) }
 
+    var triggerCameraLaunch by remember { mutableStateOf(false) }
+
     // React to incoming Deep Links and Intents from Widget & Shortcuts
     val incomingUri by MainActivity.currentIntentData
     val incomingAction by MainActivity.currentIntentAction
@@ -87,6 +95,7 @@ fun OmniRootApp() {
                     com.example.engine.fs.LocalFileManager.setWorkspaceName(newTempId, "📷 Camera Chat")
                     chatSessionId = newTempId
                 }
+                triggerCameraLaunch = true
                 currentTab = AppTab.CHAT
                 navController.navigate("main") { popUpTo("main") { inclusive = true } }
             } else if (uriStr.contains("chat/voice") || action == "voice_mode") {
@@ -160,14 +169,18 @@ fun OmniRootApp() {
         
         NavHost(navController = navController, startDestination = "main") {
             composable("main") {
+                val isImeOpen = WindowInsets.isImeVisible
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    contentWindowInsets = WindowInsets.statusBars,
                     bottomBar = {
-                        FixedBottomNav(
-                            currentTab = currentTab,
-                            onTabSelected = { currentTab = it },
-                            onMoreClick = { showWorkspaceActions = true }
-                        )
+                        if (!isImeOpen) {
+                            FixedBottomNav(
+                                currentTab = currentTab,
+                                onTabSelected = { currentTab = it },
+                                onMoreClick = { showWorkspaceActions = true }
+                            )
+                        }
                     }
                 ) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
@@ -179,6 +192,8 @@ fun OmniRootApp() {
                                 }
                                 ChatScreen(
                                     sessionId = chatSessionId,
+                                    initialCameraTrigger = triggerCameraLaunch,
+                                    onCameraTriggerConsumed = { triggerCameraLaunch = false },
                                     onMenuClick = { scope.launch { drawerState.open() } },
                                     onNavigateToThreadSettings = { navController.navigate("thread_settings") },
                                     onSessionPromoted = { promotedId ->
@@ -226,7 +241,17 @@ fun OmniRootApp() {
 
             composable("artifacts") {
                 com.example.ui.artifacts.ArtifactsScreen(
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onEditInChatCode = { artifact ->
+                        scope.launch {
+                            val wsId = com.example.engine.fs.ArtifactWorkspaceManager.openArtifactInWorkspace(context, artifact)
+                            chatSessionId = wsId
+                            prefs.edit().putString("active_chat_id", wsId).apply()
+                            navController.popBackStack()
+                            currentTab = AppTab.CHAT
+                            android.widget.Toast.makeText(context, "Editing '${artifact.title}' with AI in Chat & Code", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
             }
             

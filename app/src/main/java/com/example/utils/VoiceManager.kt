@@ -82,7 +82,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
 
     fun getSttEngine(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_STT_ENGINE, ENGINE_ANDROID_NATIVE) ?: ENGINE_ANDROID_NATIVE
+        return prefs.getString(KEY_STT_ENGINE, ENGINE_DIRECT_AUDIO) ?: ENGINE_DIRECT_AUDIO
     }
 
     fun setSttEngine(context: Context, engine: String) {
@@ -152,25 +152,27 @@ object VoiceManager : TextToSpeech.OnInitListener {
         val engine = getSttEngine(context)
         LogKeeper.log("VoiceManager", "StartListening", "Starting voice recognition with engine: $engine")
 
-        if (engine == ENGINE_DIRECT_AUDIO) {
-            startDirectAudioRecording(context, onAudioRecorded, onError)
-        } else {
+        if (engine == ENGINE_ANDROID_NATIVE) {
             // Android Native STT (SpeechRecognizer)
             mainHandler.post {
-                startSpeechRecognizer(context, onPartialResult, onFinalResult, onError)
+                startSpeechRecognizer(context, onAudioRecorded, onPartialResult, onFinalResult, onError)
             }
+        } else {
+            // DIRECT_AUDIO or CUSTOM_MODEL -> Direct microphone recording
+            startDirectAudioRecording(context, onAudioRecorded, onError)
         }
     }
 
     private fun startSpeechRecognizer(
         context: Context,
+        onAudioRecorded: ((File) -> Unit)?,
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
         onError: (String) -> Unit
     ) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            LogKeeper.log("VoiceManager", "SttUnavailable", "Speech recognition unavailable on device, falling back to direct audio")
-            startDirectAudioRecording(context, null, onError)
+            LogKeeper.log("VoiceManager", "SttUnavailable", "Speech recognition unavailable on device, falling back to direct audio recording")
+            startDirectAudioRecording(context, onAudioRecorded, onError)
             return
         }
 
@@ -211,7 +213,14 @@ object VoiceManager : TextToSpeech.OnInitListener {
                             else -> "Recognition error code: $error"
                         }
                         LogKeeper.log("VoiceManager", "SttError", errorText)
-                        onError(errorText)
+                        
+                        // Fallback gracefully to direct audio on client error
+                        if (error == SpeechRecognizer.ERROR_CLIENT) {
+                            LogKeeper.log("VoiceManager", "SttFallback", "Switching to direct audio mode due to client error")
+                            startDirectAudioRecording(context, onAudioRecorded, onError)
+                        } else {
+                            onError(errorText)
+                        }
                     }
 
                     override fun onResults(results: Bundle?) {
@@ -250,7 +259,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
             _isListening.value = false
             val errorMsg = "Could not start SpeechRecognizer: ${e.message}"
             LogKeeper.log("VoiceManager", "SttException", errorMsg)
-            onError(errorMsg)
+            startDirectAudioRecording(context, onAudioRecorded, onError)
         }
     }
 

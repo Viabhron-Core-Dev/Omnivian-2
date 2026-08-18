@@ -288,9 +288,20 @@ fun AudioSettingsScreen(
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                            containerColor = if (isSelected)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedModelPath = modelFile.absolutePath
+                                VoiceManager.setSelectedModelPath(context, modelFile.absolutePath)
+                                activeEngine = VoiceManager.ENGINE_CUSTOM_MODEL
+                                VoiceManager.setSttEngine(context, VoiceManager.ENGINE_CUSTOM_MODEL)
+                                Toast.makeText(context, "Selected ${modelFile.name} as active audio model", Toast.LENGTH_SHORT).show()
+                            }
                     ) {
                         Row(
                             modifier = Modifier
@@ -298,10 +309,20 @@ fun AudioSettingsScreen(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(modelFile.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(modelFile.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    if (isSelected) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("• Active", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                                 Text(fileSizeMb, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = {
