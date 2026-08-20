@@ -167,7 +167,9 @@ fun ChatScreen(
     }
     
     val isListening by VoiceManager.isListening.collectAsState()
+    val voiceState by VoiceManager.voiceState.collectAsState()
     val audioAmplitude by VoiceManager.amplitude.collectAsState()
+    val livePartialText by VoiceManager.livePartialText.collectAsState()
     var recordedVoiceFile by remember { mutableStateOf<java.io.File?>(null) }
     
     val audioPermissionLauncher = rememberLauncherForActivityResult(
@@ -178,21 +180,9 @@ fun ChatScreen(
                 context = context,
                 onAudioRecorded = { file ->
                     recordedVoiceFile = file
-                    val engine = VoiceManager.getSttEngine(context)
-                    val current = inputText.trim()
-                    if (engine == VoiceManager.ENGINE_CUSTOM_MODEL) {
-                        val modelName = VoiceManager.getSelectedModelPath(context)?.substringAfterLast("/") ?: "Custom Audio Model"
-                        val voiceNoteTag = "[Audio Note: ${file.name} ($modelName)]"
-                        inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
-                        Toast.makeText(context, "Recorded with $modelName", Toast.LENGTH_SHORT).show()
-                    } else if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
-                        val voiceNoteTag = "[Audio: ${file.name}]"
-                        inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
-                        Toast.makeText(context, "Voice note recorded (${file.name})", Toast.LENGTH_SHORT).show()
-                    }
                 },
                 onPartialResult = { partial ->
-                    // Live partial result can be displayed or logged
+                    // Live partial text updated automatically in VoiceManager
                 },
                 onFinalResult = { text ->
                     if (text.isNotBlank()) {
@@ -206,6 +196,49 @@ fun ChatScreen(
             )
         } else {
             Toast.makeText(context, "Microphone permission is required for voice input.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val startVoiceInput: () -> Unit = {
+        val engine = VoiceManager.getSttEngine(context)
+        if (engine == VoiceManager.ENGINE_CUSTOM_MODEL) {
+            val selectedPath = VoiceManager.getSelectedModelPath(context)
+            val imported = VoiceManager.listImportedModels(context)
+            if (selectedPath == null && imported.isEmpty()) {
+                Toast.makeText(context, "No STT audio model found! Please select or import a model in Audio Settings.", Toast.LENGTH_SHORT).show()
+            } else {
+                audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+        } else {
+            audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val stopVoiceInput: () -> Unit = {
+        VoiceManager.stopListening { file ->
+            recordedVoiceFile = file
+            scope.launch {
+                try {
+                    if (file.exists() && file.length() > 0) {
+                        Toast.makeText(context, "Transcribing voice with model...", Toast.LENGTH_SHORT).show()
+                        val result = OmniRootClient.generateContent(
+                            messages = listOf(
+                                ChatMessage(
+                                    role = MessageRole.USER,
+                                    text = "Transcribe the spoken voice audio input from file ${file.name}. Output ONLY the transcribed text without quotes or explanations."
+                                )
+                            ),
+                            model = if (selectedModel.isNotBlank() && selectedModel != "Select Model") selectedModel else "gemini-2.5-flash"
+                        )
+                        val transcribed = result.text?.trim()?.removePrefix("\"")?.removeSuffix("\"") ?: ""
+                        if (transcribed.isNotBlank() && !transcribed.startsWith("Network Error") && !transcribed.startsWith("API Error")) {
+                            inputText = if (inputText.isBlank()) transcribed else "$inputText $transcribed"
+                        }
+                    }
+                } catch (e: Exception) {
+                    LogKeeper.log("VoiceInput", "TranscriptionError", "Error: ${e.message}")
+                }
+            }
         }
     }
     
@@ -676,6 +709,17 @@ fun ChatScreen(
                     maxLines = Int.MAX_VALUE
                 )
                 
+                // Voice Input Waveform Pulse Bar with Multi-Color States & Stop Button
+                if (isListening) {
+                    VoiceInputPulseBar(
+                        voiceState = voiceState,
+                        amplitude = audioAmplitude,
+                        partialText = livePartialText,
+                        onStopClick = { stopVoiceInput() },
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -754,23 +798,9 @@ fun ChatScreen(
                         FilledIconButton(
                             onClick = {
                                 if (isListening) {
-                                    VoiceManager.stopListening { file ->
-                                        val engine = VoiceManager.getSttEngine(context)
-                                        recordedVoiceFile = file
-                                        val current = inputText.trim()
-                                        if (engine == VoiceManager.ENGINE_CUSTOM_MODEL) {
-                                            val modelName = VoiceManager.getSelectedModelPath(context)?.substringAfterLast("/") ?: "Custom Audio Model"
-                                            val voiceNoteTag = "[Audio Note: ${file.name} ($modelName)]"
-                                            inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
-                                            Toast.makeText(context, "Voice recorded with $modelName", Toast.LENGTH_SHORT).show()
-                                        } else if (engine == VoiceManager.ENGINE_DIRECT_AUDIO) {
-                                            val voiceNoteTag = "[Audio: ${file.name}]"
-                                            inputText = if (current.isEmpty()) voiceNoteTag else "$current $voiceNoteTag"
-                                            Toast.makeText(context, "Voice note ready: ${file.name}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    stopVoiceInput()
                                 } else {
-                                    audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                    startVoiceInput()
                                 }
                             },
                             colors = IconButtonDefaults.filledIconButtonColors(
