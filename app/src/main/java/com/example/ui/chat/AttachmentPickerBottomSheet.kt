@@ -109,6 +109,16 @@ fun AttachmentPickerBottomSheet(
             )
             
             AttachmentOptionItem(
+                icon = Icons.Default.AutoAwesome,
+                title = "Knowledge Bits",
+                subtitle = "Insert cached code reference, GitHub file, or table",
+                onClick = {
+                    onOptionSelected(AttachmentOption.KnowledgeBits)
+                    onDismiss()
+                }
+            )
+
+            AttachmentOptionItem(
                 icon = Icons.Default.Code,
                 title = "GitHub Repository",
                 subtitle = "Import code from a GitHub link",
@@ -174,6 +184,7 @@ sealed class AttachmentOption {
     object LaunchCamera : AttachmentOption()
     data class ImageUri(val uri: Uri) : AttachmentOption()
     data class FileUri(val uri: Uri) : AttachmentOption()
+    object KnowledgeBits : AttachmentOption()
     data class GithubRepo(val url: String) : AttachmentOption()
     object GoogleDrive : AttachmentOption()
     object Workspace : AttachmentOption()

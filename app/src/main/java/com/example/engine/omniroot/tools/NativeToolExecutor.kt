@@ -40,6 +40,27 @@ object NativeToolExecutor {
                         "Error: Directory not found at $path"
                     }
                 }
+                "knowledge_bits", "save_knowledge_bit", "fetch_and_cache_bit", "query_knowledge_bits", "read_knowledge_bit", "refresh_knowledge_bit" -> {
+                    kotlinx.coroutines.runBlocking {
+                        val map = mutableMapOf<String, Any>()
+                        val keys = args.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            map[key] = args.get(key)
+                        }
+                        if (functionName != "knowledge_bits" && !map.containsKey("action")) {
+                            map["action"] = when (functionName) {
+                                "save_knowledge_bit" -> "save"
+                                "fetch_and_cache_bit" -> "fetch_and_cache"
+                                "query_knowledge_bits" -> "query"
+                                "read_knowledge_bit" -> "read"
+                                "refresh_knowledge_bit" -> "refresh"
+                                else -> "query"
+                            }
+                        }
+                        com.example.engine.tools.KnowledgeBitsTool(context).execute(map)
+                    }
+                }
                 else -> {
                     "Error: Unknown tool $functionName"
                 }

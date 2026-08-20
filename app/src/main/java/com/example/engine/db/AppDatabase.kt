@@ -25,8 +25,9 @@ import com.example.engine.db.ProviderPrepopulator
     RequestLogEntity::class,
     AiModelEntity::class,
     ChatSettingsEntity::class,
-    ArtifactEntity::class
-], version = 14, exportSchema = false)
+    ArtifactEntity::class,
+    KnowledgeBitEntity::class
+], version = 15, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workspaceConfigDao(): WorkspaceConfigDao
@@ -41,6 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun modelRatingDao(): ModelRatingDao
     abstract fun chatSettingsDao(): ChatSettingsDao
     abstract fun artifactDao(): ArtifactDao
+    abstract fun knowledgeBitDao(): KnowledgeBitDao
 
     companion object {
         val MIGRATION_5_6 = object : Migration(5, 6) {
@@ -103,6 +105,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `knowledge_bits` (
+                        `id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `sourceUrl` TEXT,
+                        `contentType` TEXT NOT NULL DEFAULT 'NOTE',
+                        `originalTimestamp` INTEGER NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        `lastAccessedAt` INTEGER NOT NULL,
+                        `lastVerifiedAt` INTEGER NOT NULL,
+                        `accessCount` INTEGER NOT NULL DEFAULT 1,
+                        `isPinned` INTEGER NOT NULL DEFAULT 0,
+                        `ttlSeconds` INTEGER NOT NULL DEFAULT 86400,
+                        `workspaceId` TEXT,
+                        `summary` TEXT,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
         fun getDatabase(context: Context): AppDatabase {
@@ -113,7 +139,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "omnivian_database"
                 )
                 .addCallback(DatabaseCallback())
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

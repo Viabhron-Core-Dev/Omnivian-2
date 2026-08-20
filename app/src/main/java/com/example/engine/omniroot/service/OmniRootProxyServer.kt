@@ -206,7 +206,10 @@ class OmniRootProxyServer(port: Int, private val context: Context) : NanoHTTPD("
                         if (!toolCalls.isNullOrEmpty()) {
                             for (tc in toolCalls) {
                                 val funcName = tc.function.name
-                                if (funcName == "read_file" || funcName == "write_file" || funcName == "list_files") {
+                                if (funcName == "read_file" || funcName == "write_file" || funcName == "list_files" ||
+                                    funcName == "knowledge_bits" || funcName == "save_knowledge_bit" ||
+                                    funcName == "fetch_and_cache_bit" || funcName == "query_knowledge_bits" ||
+                                    funcName == "read_knowledge_bit" || funcName == "refresh_knowledge_bit") {
                                     val result = com.example.engine.omniroot.tools.NativeToolExecutor.execute(context, funcName, tc.function.arguments)
                                     // Normally we would append the tool result and call the LLM again.
                                     // For now, we will just return the tool execution result as an assistant message 

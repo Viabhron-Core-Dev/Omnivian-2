@@ -4,13 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.DesignServices
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -35,9 +29,16 @@ fun GlobalSidebar(
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var workspaces by remember { mutableStateOf(emptyList<File>()) }
+    var showKnowledgeBitsSheet by remember { mutableStateOf(false) }
     
     LaunchedEffect(currentChatId, onClose) { // Trigger reload when sidebar opens or chat changes
         workspaces = LocalFileManager.getWorkspaces()
+    }
+
+    if (showKnowledgeBitsSheet) {
+        com.example.ui.library.KnowledgeBitsBottomSheet(
+            onDismiss = { showKnowledgeBitsSheet = false }
+        )
     }
 
     ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
@@ -59,6 +60,17 @@ fun GlobalSidebar(
             selected = false,
             onClick = { 
                 onNavigateToArtifacts()
+                onClose()
+            },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+            label = { Text("Knowledge Bits (Cache)") },
+            selected = false,
+            onClick = { 
+                showKnowledgeBitsSheet = true
                 onClose()
             },
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)

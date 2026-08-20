@@ -124,6 +124,7 @@ fun ChatScreen(
     var showAttachmentPicker by remember { mutableStateOf(false) }
     var selectedFile by remember { mutableStateOf<String?>(null) }
     var showArtifactsList by remember { mutableStateOf(false) }
+    var showKnowledgeBitsPicker by remember { mutableStateOf(false) }
     var isGenerating by remember { mutableStateOf(false) }
     var currentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var selectedModel by remember { mutableStateOf("Select Model") }
@@ -172,22 +173,29 @@ fun ChatScreen(
     val livePartialText by VoiceManager.livePartialText.collectAsState()
     var recordedVoiceFile by remember { mutableStateOf<java.io.File?>(null) }
     
+    var baseInputTextBeforeVoice by remember { mutableStateOf("") }
+
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
+            baseInputTextBeforeVoice = inputText.trim()
             VoiceManager.startListening(
                 context = context,
                 onAudioRecorded = { file ->
                     recordedVoiceFile = file
                 },
                 onPartialResult = { partial ->
-                    // Live partial text updated automatically in VoiceManager
+                    if (partial.isNotBlank()) {
+                        val base = baseInputTextBeforeVoice
+                        inputText = if (base.isEmpty()) partial else "$base $partial"
+                    }
                 },
                 onFinalResult = { text ->
                     if (text.isNotBlank()) {
-                        inputText = if (inputText.isBlank()) text else "$inputText $text"
-                        Toast.makeText(context, "Transcribed voice input", Toast.LENGTH_SHORT).show()
+                        val base = baseInputTextBeforeVoice
+                        inputText = if (base.isEmpty()) text else "$base $text"
+                        Toast.makeText(context, "Voice transcribed", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onError = { err ->
@@ -1052,12 +1060,25 @@ fun ChatScreen(
             )
         }
 
+        if (showKnowledgeBitsPicker) {
+            com.example.ui.library.KnowledgeBitsBottomSheet(
+                onDismiss = { showKnowledgeBitsPicker = false },
+                onInsertToChat = { formattedPrompt ->
+                    inputText = if (inputText.isBlank()) formattedPrompt else "$inputText\n\n$formattedPrompt"
+                    showKnowledgeBitsPicker = false
+                }
+            )
+        }
+
         if (showAttachmentPicker) {
             AttachmentPickerBottomSheet(
                 onDismiss = { showAttachmentPicker = false },
                 onOptionSelected = { option ->
                     // Handle attachment logic here
                     when(option) {
+                        is AttachmentOption.KnowledgeBits -> {
+                            showKnowledgeBitsPicker = true
+                        }
                         is AttachmentOption.LaunchCamera -> {
                             launchCamera()
                         }

@@ -27,10 +27,12 @@ import java.util.Locale
 
 enum class VoiceState {
     IDLE,
-    NO_AUDIO,
-    RECOGNIZING,
-    PROCESSING,
-    ERROR
+    SILENCE,            // Grey: Silence / Idle recording
+    HEARING_SOUND,      // Blue: Hearing sound above threshold
+    SPEECH_RECOGNIZED,  // Emerald Green: Speech recognized and transcribed to note
+    UNDECIPHERABLE,     // Red/Amber: Audio detected without decipherable words
+    PROCESSING,         // Purple: Transcribing / decoding
+    ERROR               // Red: Error / No model
 }
 
 object VoiceManager : TextToSpeech.OnInitListener {
@@ -208,19 +210,33 @@ object VoiceManager : TextToSpeech.OnInitListener {
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _isListening.value = true
-                        _voiceState.value = VoiceState.NO_AUDIO
+                        _voiceState.value = VoiceState.SILENCE
                         LogKeeper.log("VoiceManager", "SttReady", "Speech recognizer ready for speech")
                     }
 
                     override fun onBeginningOfSpeech() {
                         _isListening.value = true
-                        _voiceState.value = VoiceState.RECOGNIZING
+                        if (_livePartialText.value.isBlank()) {
+                            _voiceState.value = VoiceState.HEARING_SOUND
+                        } else {
+                            _voiceState.value = VoiceState.SPEECH_RECOGNIZED
+                        }
                     }
 
                     override fun onRmsChanged(rmsdB: Float) {
                         val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
                         _amplitude.value = normalized
-                        _voiceState.value = if (normalized > 0.08f) VoiceState.RECOGNIZING else VoiceState.NO_AUDIO
+                        if (normalized > 0.08f) {
+                            if (_livePartialText.value.isNotBlank()) {
+                                _voiceState.value = VoiceState.SPEECH_RECOGNIZED
+                            } else {
+                                _voiceState.value = VoiceState.HEARING_SOUND
+                            }
+                        } else {
+                            if (_voiceState.value != VoiceState.UNDECIPHERABLE && _voiceState.value != VoiceState.PROCESSING) {
+                                _voiceState.value = VoiceState.SILENCE
+                            }
+                        }
                     }
 
                     override fun onBufferReceived(buffer: ByteArray?) {}
@@ -230,11 +246,16 @@ object VoiceManager : TextToSpeech.OnInitListener {
                     }
 
                     override fun onError(error: Int) {
-                        _isListening.value = false
                         _amplitude.value = 0f
-                        _voiceState.value = VoiceState.ERROR
+                        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            // Audio detected without decipherable words -> Amber/Red state
+                            _voiceState.value = VoiceState.UNDECIPHERABLE
+                        } else {
+                            _voiceState.value = VoiceState.ERROR
+                        }
+                        
                         val errorText = when (error) {
-                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. Try again."
+                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. (Sound detected without decipherable words)"
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timed out."
                             SpeechRecognizer.ERROR_AUDIO -> "Audio recording error."
                             SpeechRecognizer.ERROR_CLIENT -> "Client recognition error."
@@ -248,20 +269,25 @@ object VoiceManager : TextToSpeech.OnInitListener {
                             LogKeeper.log("VoiceManager", "SttFallback", "Switching to direct audio mode due to client error")
                             startDirectAudioRecording(context, onAudioRecorded, onFinalResult, onError)
                         } else {
-                            onError(errorText)
+                            if (error != SpeechRecognizer.ERROR_NO_MATCH) {
+                                _isListening.value = false
+                                onError(errorText)
+                            }
                         }
                     }
 
                     override fun onResults(results: Bundle?) {
                         _isListening.value = false
                         _amplitude.value = 0f
-                        _voiceState.value = VoiceState.IDLE
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         val text = matches?.firstOrNull() ?: ""
                         _livePartialText.value = text
                         LogKeeper.log("VoiceManager", "SttResults", "Final STT text: '$text'")
                         if (text.isNotBlank()) {
+                            _voiceState.value = VoiceState.SPEECH_RECOGNIZED
                             onFinalResult(text)
+                        } else {
+                            _voiceState.value = VoiceState.UNDECIPHERABLE
                         }
                     }
 
@@ -269,7 +295,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
                         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         val partial = matches?.firstOrNull() ?: ""
                         if (partial.isNotBlank()) {
-                            _voiceState.value = VoiceState.RECOGNIZING
+                            _voiceState.value = VoiceState.SPEECH_RECOGNIZED
                             _livePartialText.value = partial
                             onPartialResult(partial)
                         }
@@ -288,7 +314,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
 
             speechRecognizer?.startListening(intent)
             _isListening.value = true
-            _voiceState.value = VoiceState.NO_AUDIO
+            _voiceState.value = VoiceState.SILENCE
         } catch (e: Exception) {
             _isListening.value = false
             _voiceState.value = VoiceState.ERROR
@@ -330,7 +356,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
 
             mediaRecorder = recorder
             _isListening.value = true
-            _voiceState.value = VoiceState.NO_AUDIO
+            _voiceState.value = VoiceState.SILENCE
             LogKeeper.log("VoiceManager", "DirectAudioStarted", "Direct recording started -> ${audioFile.name}")
 
             amplitudeJob = scope.launch {
@@ -339,7 +365,7 @@ object VoiceManager : TextToSpeech.OnInitListener {
                         val maxAmp = mediaRecorder?.maxAmplitude ?: 0
                         val norm = (maxAmp / 28000f).coerceIn(0f, 1f)
                         _amplitude.value = norm
-                        _voiceState.value = if (norm > 0.08f) VoiceState.RECOGNIZING else VoiceState.NO_AUDIO
+                        _voiceState.value = if (norm > 0.08f) VoiceState.HEARING_SOUND else VoiceState.SILENCE
                     } catch (_: Exception) {}
                     delay(80)
                 }

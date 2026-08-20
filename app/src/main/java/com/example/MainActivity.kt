@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         LocalFileManager.init(applicationContext)
         LogKeeper.init(applicationContext)
         VoiceManager.init(applicationContext)
+        com.example.engine.EngineRegistry.registerTool(com.example.engine.tools.KnowledgeBitsTool(applicationContext))
         
         handleIncomingIntent(intent)
         

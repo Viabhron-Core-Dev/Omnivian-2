@@ -32,12 +32,20 @@ This document details the exact integration of Kai 9000-inspired capabilities, a
 └──────────────────────────────────────────────┬──────────────────────────────────────────────┘
                                                │
 ┌──────────────────────────────────────────────▼──────────────────────────────────────────────┐
-│ PHASE 11: THE BRAIN, MEMORY & SKILL LIBRARY                                                 │
+│ PHASE 11: THE BRAIN, MEMORY, AGENT COMPILER & COMPLEX EXECUTABLE AGENTS                     │
 │ 👉 Soul & Self-Reinforcing Memory System ("Soul Skills")                                    │
 │    • Dedicated "Soul Skills" folder in the global Skills Library                             │
 │    • Application Scope Toggles: [Global (All Chats)] | [Workspace Specific] | [Ignored]     │
 │    • In-Chat Skill Creation: Save multi-step workflows & prompt templates to Skill Library     │
 │    • Self-Reinforcing Memory Loop: Extract chat facts & promote high-confidence learnings    │
+│ 👉 Conversational Agent Builder (In-Chat Meta-Agent Compiler) [11.5]                        │
+│    • Natural language agent description in chat -> AI synthesizes structured Agent Manifest  │
+│    • Interactive Review Card rendered in chat (editable Name, Icon, Tag, System Instructions)│
+│    • 1-Tap "Save to Agent Library" -> persists to Room DB (AgentEntity) with custom tags     │
+│ 👉 Complex Executable Agents & Sandbox/Tool Binding (Hermes/Claude/OpenAI Style) [11.6]     │
+│    • Binds Phase 10 Sandboxes (PRoot Linux, JS engine, CLI runners) & MCP tools to agents    │
+│    • Structured function/tool calling schemas (<tool_call> / JSON schemas)                  │
+│    • Stateful multi-step execution loops with dynamic tool invocation & verification         │
 └──────────────────────────────────────────────┬──────────────────────────────────────────────┘
                                                │
 ┌──────────────────────────────────────────────▼──────────────────────────────────────────────┐
@@ -85,7 +93,7 @@ Refer to **`PHASE_8_MINI_PHASES.md`** for the detailed breakdown across:
 
 ---
 
-### [PHASE 11] The Brain & Memory: Soul Skills Engine
+### [PHASE 11] The Brain & Memory: Soul Skills & Conversational Agent Builder
 
 1. **Soul Skills Directory in Skill Library:**
    - Skills Library features a primary **"Soul Skills"** category.
@@ -96,6 +104,18 @@ Refer to **`PHASE_8_MINI_PHASES.md`** for the detailed breakdown across:
 2. **Self-Reinforcing Memory Promotion:**
    - Background extraction identifies key facts, preferences, and recurring instructions.
    - High-frequency memories are promoted into structured Soul Skills with full user visibility and editability.
+
+3. **In-Chat Conversational Agent Builder (Sub-Phase 11.5):**
+   - User describes desired agent in natural conversation (e.g. *"Build an agent that checks CVEs and writes audit reports"*).
+   - Meta-Agent Compiler produces a structured Agent Manifest rendered as an **Interactive Agent Review Card** in the chat bubble.
+   - User reviews/edits fields (Name, Icon, Category/Tags, Model Configuration, Bound Tools/Skills, and System Instructions).
+   - Tapping **"Save to Agent Library"** persists to Room database (`AgentEntity` / `BuiltAgents`) with a new custom tag, making it immediately selectable in the Model/Agent dropdown pill.
+
+4. **Complex Executable Agents & Sandbox/Tool Binding (Sub-Phase 11.6):**
+   - Supports advanced, coded/executable workflows beyond static text prompts (Hermes / Custom GPTs / Claude Code style).
+   - Direct binding to Phase 10 execution sandboxes (`PRoot` Linux userland, QuickJS engine, terminal scripts) and MCP Server tools.
+   - Structured function calling schemas (`<tool_call>` / JSON specs) associated per agent.
+   - Multi-step execution loops with stateful context, dynamic tool execution, and verification.
 
 ---
 

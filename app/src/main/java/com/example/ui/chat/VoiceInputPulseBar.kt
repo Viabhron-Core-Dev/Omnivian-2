@@ -45,13 +45,18 @@ fun VoiceInputPulseBar(
     val seconds = elapsedSeconds % 60
     val formattedTime = "%02d:%02d".format(minutes, seconds)
 
-    // Animated colors based on speech recognition state
+    // Animated colors based on real-time acoustic HUD states:
+    // - Grey: Silence / Idle recording.
+    // - Blue: Hearing sound above threshold.
+    // - Emerald Green: Speech recognized and transcribed to note.
+    // - Red/Amber: Audio detected without decipherable words / Error.
     val targetPulseColor = when (voiceState) {
-        VoiceState.RECOGNIZING -> Color(0xFF10B981) // Vibrant Emerald Green (Audio recognized)
-        VoiceState.NO_AUDIO -> Color(0xFF64748B)   // Dim Slate (No audio / silence)
-        VoiceState.PROCESSING -> Color(0xFFA855F7) // Violet/Purple (Processing model output)
-        VoiceState.ERROR -> Color(0xFFEF4444)      // Red (Error / No Model)
-        VoiceState.IDLE -> MaterialTheme.colorScheme.primary
+        VoiceState.SILENCE, VoiceState.IDLE -> Color(0xFF64748B)       // Grey (Silence / Idle recording)
+        VoiceState.HEARING_SOUND -> Color(0xFF3B82F6)                  // Blue (Hearing sound above threshold)
+        VoiceState.SPEECH_RECOGNIZED -> Color(0xFF10B981)              // Emerald Green (Speech recognized)
+        VoiceState.UNDECIPHERABLE -> Color(0xFFF59E0B)                 // Amber (Audio detected without decipherable words)
+        VoiceState.PROCESSING -> Color(0xFFA855F7)                     // Violet/Purple (Processing with model)
+        VoiceState.ERROR -> Color(0xFFEF4444)                          // Red (No model / Error)
     }
 
     val animatedBarColor by animateColorAsState(
@@ -108,8 +113,10 @@ fun VoiceInputPulseBar(
                     Spacer(modifier = Modifier.width(6.dp))
 
                     val statusLabel = when (voiceState) {
-                        VoiceState.RECOGNIZING -> "Speech detected"
-                        VoiceState.NO_AUDIO -> "Listening... (Speak now)"
+                        VoiceState.SILENCE -> "Listening... (Silence)"
+                        VoiceState.HEARING_SOUND -> "Hearing sound..."
+                        VoiceState.SPEECH_RECOGNIZED -> "Speech recognized"
+                        VoiceState.UNDECIPHERABLE -> "Audio detected (No decipherable words)"
                         VoiceState.PROCESSING -> "Transcribing audio..."
                         VoiceState.ERROR -> "Voice input error"
                         VoiceState.IDLE -> "Listening..."
@@ -118,7 +125,7 @@ fun VoiceInputPulseBar(
                     Text(
                         text = if (partialText.isNotBlank()) partialText else statusLabel,
                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                        fontWeight = if (voiceState == VoiceState.RECOGNIZING) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (voiceState == VoiceState.SPEECH_RECOGNIZED) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (partialText.isNotBlank()) MaterialTheme.colorScheme.onSurface else animatedBarColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -167,7 +174,7 @@ fun VoiceInputPulseBar(
                     )
                 }
 
-                // Dynamic Audio Waveform Equalizer (16 bars)
+                // Dynamic Audio Waveform Equalizer (18 bars)
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -185,15 +192,18 @@ fun VoiceInputPulseBar(
                         val sinMod = (sin(idlePhase + normalizedPos * Math.PI * 2).toFloat() + 1f) / 2f
                         
                         val baseHeight = when (voiceState) {
-                            VoiceState.RECOGNIZING -> {
-                                val dynamicAmp = (amplitude * (0.4f + 0.6f * sinMod) * 28f).coerceIn(4f, 28f)
+                            VoiceState.SPEECH_RECOGNIZED, VoiceState.HEARING_SOUND -> {
+                                val dynamicAmp = (amplitude * (0.4f + 0.6f * sinMod) * 28f).coerceIn(5f, 28f)
                                 dynamicAmp.dp
                             }
-                            VoiceState.NO_AUDIO -> {
+                            VoiceState.SILENCE, VoiceState.IDLE -> {
                                 (3f + 3f * sinMod).dp
                             }
+                            VoiceState.UNDECIPHERABLE -> {
+                                (4f + 8f * sinMod).dp
+                            }
                             VoiceState.PROCESSING -> {
-                                (6f + 8f * sinMod).dp
+                                (6f + 10f * sinMod).dp
                             }
                             else -> 4.dp
                         }
