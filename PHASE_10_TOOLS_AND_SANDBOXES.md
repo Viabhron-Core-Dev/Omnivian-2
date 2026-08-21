@@ -78,16 +78,27 @@ Phase 10 transforms OmniRoot from a dual Cloud/Local LLM interface into a **full
 
 ---
 
-### B. Workspace & File System Tools
+### B. Workspace & File System Tools (Deterministic JSON Architecture)
 
-All workspace operations operate strictly relative to the active workspace folder (`/data/user/0/shura.omnivian/files/workspace/`):
+Following the **Google AI Studio deterministic tool model**, all workspace modifications are executed via high-speed, zero-RAM Kotlin native JSON tools rather than unstable shell commands (`sed`, `cat`, `awk`). This eliminates shell escaping syntax bugs, prevents token bloat, and provides sub-millisecond execution on low-memory devices (Android 15 Go / 3GB RAM):
 
-1. **`read_file(path, startLine, endLine)`**: Read complete file or specific 1-indexed line slices with boundary verification.
-2. **`write_file(path, content, overwrite)`**: Creates parent directories on-demand and writes UTF-8 text safely.
-3. **`edit_file(path, targetContent, replacementContent)`**: Surgical search-and-replace enforcing single-occurrence validation to prevent hallucinated edits.
-4. **`delete_file(path)`** & **`move_file(sourcePath, destPath)`**: File system manipulation with safety checks.
-5. **`list_dir(path, recursive)`**: Returns formatted directory tree with file sizes and directory indicators.
-6. **`grep_search(query, path, filePattern)`**: Fast recursive substring and regex search across workspace source files, skipping binary assets.
+1. **`view_file(path, startLine, endLine)`**:
+   * **Token Optimization**: Supports precise 1-indexed line slicing (`startLine` to `endLine`) to prevent dumping massive files into context.
+   * Boundary checks with automatic capping to maximum safe slice size.
+2. **`edit_file(path, targetContent, replacementContent)`**:
+   * **Surgical Search-and-Replace**: Finds the exact `targetContent` substring in memory and swaps it for `replacementContent`.
+   * **Uniqueness Validation**: Fails safely if `targetContent` matches 0 or >1 occurrences, forcing the model to provide unique anchor context and eliminating accidental code corruption.
+   * **Token Cost**: Only costs ~100–300 tokens per edit instead of regenerating entire multi-thousand-line files.
+3. **`multi_edit_file(path, replacementChunks)`**:
+   * Accepts an array of non-contiguous `{targetContent, replacementContent}` pairs to perform multiple surgical updates in a single LLM turn.
+4. **`create_file(path, content, overwrite)`**:
+   * UTF-8 safe write with automatic parent directory creation and overwrite safety guards.
+5. **`delete_file(path)`** & **`move_file(sourcePath, destPath)`**:
+   * Guarded filesystem manipulation with path traversal prevention.
+6. **`list_dir(path, recursive)`**:
+   * Formatted directory tree with file sizes and directory indicators.
+7. **`grep_search(query, path, filePattern)`**:
+   * Fast recursive substring and regex search across workspace source files, skipping binary and build directories without spawning terminal processes.
 
 ---
 
@@ -236,7 +247,24 @@ suspend fun runAgenticTurn(userPrompt: String, threadSettings: ChatSettingsEntit
 ## 6. Telemetry & Safety Architecture
 
 1. **Permission Control**:
-   * Safe tools (`read_file`, `list_dir`, `web_search`, `js_sandbox`) execute automatically.
+   * Safe tools (`view_file`, `list_dir`, `web_search`, `js_sandbox`) execute automatically.
    * Destructive tools (`delete_file`, `shell_exec`, `proot_exec`) can be set to "Always Allow" or "Ask Before Running" in Thread/Agent Settings.
 2. **Full LogKeeper Visibility**:
    * Every tool schema generation, parse event, sandbox execution timing, stdout/stderr payload, and error is logged in `LogKeeper`.
+
+---
+
+## 7. Token Efficiency & Low-End Device Architecture (Android 15 Go / 3GB RAM)
+
+To guarantee flawless execution on low-memory Android Go devices without triggering Android's Low Memory Killer (LMK):
+
+1. **Deterministic In-Memory Tool Tier (Primary)**:
+   * 95%+ of operations (`view_file`, `edit_file`, `multi_edit_file`, `create_file`, `list_dir`, `grep_search`, `js_sandbox`) run natively inside Kotlin memory.
+   * **RAM Cost**: 0 MB extra process overhead.
+   * **Latency**: < 1 millisecond.
+   * **Token Cost**: Ultra-compact payloads via line slicing and exact chunk replacement, preventing context bloat.
+2. **On-Demand PRoot Alpine Linux (Secondary)**:
+   * Minimal Alpine rootfs (~3.5MB download, ~15MB disk).
+   * Spawns on-demand only when running compiled code or Python/Node scripts, and terminates immediately after execution to release memory back to the Android OS.
+   * **RAM Cost**: ~15MB–25MB peak memory cap.
+
