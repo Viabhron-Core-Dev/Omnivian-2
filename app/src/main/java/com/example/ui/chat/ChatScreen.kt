@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -120,6 +121,7 @@ fun ChatScreen(
     val isServerRunning by PreviewServerManager.isRunning.collectAsState()
 
     var showAgentSettings by remember { mutableStateOf(false) }
+    var showAudioSettings by remember { mutableStateOf(false) }
     var showTokenPanel by remember { mutableStateOf(false) }
     var showAttachmentPicker by remember { mutableStateOf(false) }
     var selectedFile by remember { mutableStateOf<String?>(null) }
@@ -214,6 +216,7 @@ fun ChatScreen(
             val imported = VoiceManager.listImportedModels(context)
             if (selectedPath == null && imported.isEmpty()) {
                 Toast.makeText(context, "No STT audio model found! Please select or import a model in Audio Settings.", Toast.LENGTH_SHORT).show()
+                showAudioSettings = true
             } else {
                 audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
             }
@@ -223,12 +226,14 @@ fun ChatScreen(
     }
 
     val stopVoiceInput: () -> Unit = {
+        val engine = VoiceManager.getSttEngine(context)
         VoiceManager.stopListening { file ->
             recordedVoiceFile = file
-            scope.launch {
-                try {
-                    if (file.exists() && file.length() > 0) {
-                        Toast.makeText(context, "Transcribing voice with model...", Toast.LENGTH_SHORT).show()
+            // Only query multimodal model if user explicitly selected direct audio recording file mode and no native text was already extracted
+            if (engine == VoiceManager.ENGINE_DIRECT_AUDIO && file.exists() && file.length() > 0) {
+                scope.launch {
+                    try {
+                        Toast.makeText(context, "Transcribing audio clip...", Toast.LENGTH_SHORT).show()
                         val result = OmniRootClient.generateContent(
                             messages = listOf(
                                 ChatMessage(
@@ -239,12 +244,12 @@ fun ChatScreen(
                             model = if (selectedModel.isNotBlank() && selectedModel != "Select Model") selectedModel else "gemini-2.5-flash"
                         )
                         val transcribed = result.text?.trim()?.removePrefix("\"")?.removeSuffix("\"") ?: ""
-                        if (transcribed.isNotBlank() && !transcribed.startsWith("Network Error") && !transcribed.startsWith("API Error")) {
+                        if (transcribed.isNotBlank() && !transcribed.startsWith("Network Error") && !transcribed.startsWith("API Error") && !transcribed.startsWith("No active API key")) {
                             inputText = if (inputText.isBlank()) transcribed else "$inputText $transcribed"
                         }
+                    } catch (e: Exception) {
+                        LogKeeper.log("VoiceInput", "TranscriptionError", "Error: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    LogKeeper.log("VoiceInput", "TranscriptionError", "Error: ${e.message}")
                 }
             }
         }
@@ -473,6 +478,11 @@ fun ChatScreen(
                             }
                             Toast.makeText(context, "All messages unfolded", Toast.LENGTH_SHORT).show()
                         }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Audio & Speech") },
+                        leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null) },
+                        onClick = { showMenu = false; showAudioSettings = true }
                     )
                     DropdownMenuItem(
                         text = { Text("Rename") },
@@ -724,6 +734,7 @@ fun ChatScreen(
                         amplitude = audioAmplitude,
                         partialText = livePartialText,
                         onStopClick = { stopVoiceInput() },
+                        onSettingsClick = { showAudioSettings = true },
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
@@ -1026,6 +1037,12 @@ fun ChatScreen(
                 }
             )
         }
+
+        if (showAudioSettings) {
+            AudioSettingsBottomSheet(
+                onDismiss = { showAudioSettings = false }
+            )
+        }
         
         if (showTokenPanel) {
             AiTokenPanelBottomSheet(
@@ -1130,6 +1147,9 @@ fun ChatScreen(
                             val msg = ChatMessage(text = "Workspace artifacts picker triggered", role = MessageRole.USER)
                             chatMessages.add(msg)
                             saveMessage(msg)
+                        }
+                        is AttachmentOption.AudioSettings -> {
+                            showAudioSettings = true
                         }
                         is AttachmentOption.GoogleDrive -> {
                             val msg = ChatMessage(text = "Google Drive picker triggered", role = MessageRole.USER)

@@ -144,6 +144,16 @@ fun AttachmentPickerBottomSheet(
                     onDismiss()
                 }
             )
+
+            AttachmentOptionItem(
+                icon = Icons.Default.GraphicEq,
+                title = "Audio & Speech Settings",
+                subtitle = "Configure STT engine, offline models, and voice",
+                onClick = { 
+                    onOptionSelected(AttachmentOption.AudioSettings)
+                    onDismiss()
+                }
+            )
         }
     }
 }
@@ -188,4 +198,5 @@ sealed class AttachmentOption {
     data class GithubRepo(val url: String) : AttachmentOption()
     object GoogleDrive : AttachmentOption()
     object Workspace : AttachmentOption()
+    object AudioSettings : AttachmentOption()
 }
